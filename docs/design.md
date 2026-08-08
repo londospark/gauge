@@ -14,6 +14,7 @@ A language you can hold in your head: one way to say each thing, no surprises, a
 2. **One obvious way.** Each concept gets exactly one spelling. The moment there are two ways to say the same thing, people argue about which is "right".
 3. **No context-dependent surprises.** A token may carry different meanings in unambiguous contexts (e.g. `()` as unit, empty params, or empty call args), but never in a way that isn't obvious from its surroundings.
 4. **The happy path is the short path.** The thing people do most often should be the smallest thing to type.
+5. **Do work only where the information lives.** Each pass does what it has the information to do, no earlier: the lexer/parser build *structure*, not *values*. Raw text is kept until a type is known — e.g. `Number.value` stays a string, and numeric conversion happens in the constant-folding pass where the target type exists. Deferring work to the right pass avoids premature decisions, precision loss, and rework.
 
 ## The consistency / familiarity tension
 

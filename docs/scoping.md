@@ -21,41 +21,40 @@ resource it cleans up at exit — the cleanup runs after the value is computed, 
 a value pointing at the cleaned-up thing would dangle. (The user's job for now;
 a borrow/escape check is a later-phase concern.)
 
-## The problem: the manual make/defer/cleanup pattern
+## The problem: the manual open/defer/close pattern
 
 The idiomatic C/Odin way to manage a resource is hand-written and error-prone:
 
 ```odin
-thing: Thing
-make_thing(&thing)
-defer cleanup(&thing)
-// ... use thing ...
+file: File
+file_open(&file)
+defer file_close(&file)
+// ... use file ...
 ```
 
-Three easy mistakes: forget the defer, forget the cleanup, or get the pairing
-wrong. The pairing is what a `scope` resource makes impossible to get wrong.
+Three easy mistakes: forget the defer, forget the close, or get the pairing
+wrong. The pairing is what a `scoped` resource makes impossible to get wrong.
 
-## Proposal: `scope` resources
+## Proposal: `scoped` resources
 
-Declare a resource type with its constructor and destructor:
+Declare a resource with its constructor and destructor:
 
 ```odin
-Thing :: scope { make_thing, cleanup }
+File :: scoped { file_open, file_close }
 ```
 
-Convention: `make_thing` and `cleanup` each take one pointer parameter,
-`^T`, and `T` is inferred from `make_thing`'s first parameter. So given
-`make_thing :: proc(t: ^Thing)`, the resource type is `Thing`.
+Convention: `file_open` and `file_close` each take one pointer parameter,
+`^T`, and `T` is inferred from `file_open`'s first parameter. So given
+`file_open :: proc(f: ^File)`, the resource type is `File`.
 
 Use it as a scoped block, with `it` bound to the resource. Any extra
-arguments are forwarded to `make_thing` (after the `&it` pointer), so the
-constructor can take an allocator, an arena, a size — whatever the resource
-needs:
+arguments are forwarded to the constructor (after the `&it` pointer), so it
+can take a path, an allocator, a size — whatever the resource needs:
 
 ```odin
-Thing { ... }                     // no extra args
-Thing(context.allocator, 64) {    // forwarded to make_thing
-	// ... code, with `it` as the thing ...
+File { ... }                 // no extra args
+File("data.txt") {           // forwarded to file_open
+	// ... code, with `it` as the file ...
 }
 ```
 
@@ -63,30 +62,30 @@ This desugars to:
 
 ```odin
 {
-	it: T                                      // T inferred from make_thing's ^T
-	make_thing(&it, context.allocator, 64)
-	defer cleanup(&it)
+	it: File                                 // type inferred from file_open's ^File
+	file_open(&it, "data.txt")
+	defer file_close(&it)
 	// ... the code ...
 }
 ```
 
-`it` is a stack-local; `make_thing` fills it in, and it may point into an arena.
-The sugar never takes memory control away from you — you still hand the
+`it` is a stack-local; the constructor fills it in, and it may point into an
+arena. The sugar never takes memory control away from you — you still hand the
 constructor its allocator or arena, and nothing is hidden behind a runtime.
 
 ## Semantics
 
 - **`it` is the implicit binding.** The resource is constructed into `it`
   before the body runs and cleaned up after it exits.
-- **Extra arguments go to the constructor.** `Thing(args...)` forwards `args...`
-  to `make_thing(&it, args...)`. Convention: `make_thing`'s first parameter is
-  `^T`; the rest are supplied by the scoped block call.
-- **Constructor runs first, then the defer is registered** — if `make_thing`
-  fails or the body never runs, cleanup simply doesn't fire. (A
-  failure-tracking variant, Zig-style `errdefer`, is a later option, not in the
-  first cut.)
+- **Extra arguments go to the constructor.** `File("data.txt")` forwards
+  `"data.txt"` to `file_open(&it, "data.txt")`. Convention: the constructor's
+  first parameter is `^T`; the rest are supplied by the scoped block call.
+- **Constructor runs first, then the defer is registered** — if the constructor
+  fails or the body never runs, cleanup simply doesn't fire. See the failure
+  gate below. (A failure-tracking variant, Zig-style `errdefer`, is a later
+  option, not in the first cut.)
 - **Multiple defers run LIFO** (reverse order of registration), matching Odin.
-  Nesting scope-blocks therefore cleans up inner resources first.
+  Nesting scoped blocks therefore cleans up inner resources first.
 - **A scope-block is still a block**, so it has a value (its last expression);
   the cleanup runs at exit, after that value is computed. See the caveat above
   about not returning something that aliases `it`.
@@ -95,12 +94,12 @@ constructor its allocator or arena, and nothing is hidden behind a runtime.
 
 The proposal is pure sugar and falls out in passes, as you suggested:
 
-1. **Parse** `Thing { ... }` as a distinct *scope application* node —
-   an identifier immediately followed by a block. (The parser need not yet know
-   whether `Thing` is a scope-resource; it just records the shape.)
-2. **Resolve / desugar** — once `Thing`'s definition is known, rewrite the node
-   into `{ it: T; make_thing(&it); defer cleanup(&it); ... }`. `scope`
-   declarations are looked up in the scope registry.
+1. **Parse** `File { ... }` as a distinct *scoped block* node — an identifier
+   immediately followed by a block. (The parser need not yet know whether
+   `File` is a `scoped` resource; it just records the shape.)
+2. **Resolve / desugar** — once `File`'s definition is known, rewrite the node
+   into `{ it: File; file_open(&it); defer file_close(&it); ... }`. `scoped`
+   declarations are looked up in the registry of scoped resources.
 3. **Lower defer** — a later pass inserts the deferred cleanup at the block's
    exit point in the IR/codegen, LIFO.
 
@@ -118,10 +117,102 @@ It fits the north star (see [design.md](design.md)):
 - **Zero runtime cost** — it desugars to the same make/defer/cleanup you'd
   write by hand; there's no hidden machinery.
 
-It's also deliberately *not* full RAII or ownership: it's an explicit, local
-lifetime — `Thing { ... }` — rather than a type-level destructor that runs
-whenever a value goes out of scope. That keeps the semantics visible and the
-implementation a rewrite, not a type-system feature.
+## Why `scoped` is not RAII (and not destructors)
+
+RAII (C++/Rust) and `scoped` both pair construction with cleanup, but they are
+different mechanisms with different trade-offs:
+
+| | RAII (destructors) | `scoped` |
+|---|---|---|
+| Who owns the cleanup | the **type** | the **block** |
+| When it runs | whenever a value leaves *any* scope, automatically | at the end of the one explicit block |
+| Visible at the use site? | no — implicit | yes — `File { ... }` is right there |
+| Needs ownership/move machinery | yes — borrow checker, move rules, destructor ordering | no — pure sugar over make + defer |
+| Can the resource escape the scope? | yes — moved, returned, stored | no — by construction |
+
+Destructors are implicit magic driven by the type system: create a value and
+cleanup happens invisibly later, governed by ownership rules. `scoped` is a
+**scope guard**: one explicit entry, one explicit exit, cleanup visible in the
+code, LIFO, and no type-system machinery underneath — it desugars to the exact
+make/defer/cleanup you'd write by hand. That's a deliberate philosophy: cleanup
+you can *see* beats cleanup that happens to you (the `defer`-over-destructors
+position Odin and Jai take).
+
+### Why the difference matters
+
+- **Implementation cost.** RAII drags in the ownership apparatus — move
+  semantics, destructor ordering, borrow checking, rule-of-five — because the
+  type system must understand when and in what order values die. `scoped`
+  needs nothing: it's a rewrite, so the compiler stays small.
+- **Predictability.** Block-scoped cleanup is fully deterministic and visible;
+  you never wonder *when* a destructor fires or whether a move postponed it.
+- **It fits the problem shape.** RAII's automaticism is exactly what
+  immediate-mode UI doesn't want (below). `scoped` matches the *scope*-shaped
+  problems, which is where resource pairing actually lives in systems code.
+
+### Why this doesn't nudge toward OOP
+
+This matters because RAII and OOP grew up together — destructors live on
+classes, and the ownership model is object-shaped. `scoped` deliberately
+imports none of that:
+
+- **No classes, no methods, no objects.** `file_open`/`file_close` are plain
+  procedures; `it` is plain data. There is no bundle of state-and-behavior, no
+  `thing.begin()` / `thing.render()` — the block operates on `it` as data.
+- **No lifetime beyond the block.** An RAII object can be stored, returned, or
+  placed in a hierarchy — it has object identity and a lifecycle. A `scoped`
+  thing exists only inside its block; it can't escape, so there's no ownership
+  graph, no "is-a", no polymorphism to reason about.
+- **It reinforces data + procedures, not encapsulation.** Everything is
+  visible: the data, the two procs, the scope. That's the C/Odin/Wirth shape —
+  explicit and unencapsulated — the opposite of OOP's sealed objects.
+- **The choice is the point.** Picking block-scoped `scoped` over type-driven
+  RAII is deliberately picking the non-OOP path: the resource pairing is kept,
+  the object machinery is not.
+
+## Is this new? (C++, C#, Python, Go, Zig)
+
+Honest framing up front: **the mechanism is not new.** A block-scoped cleanup
+guard has existed for decades — C++ `lock_guard`/scope-guard idiom, C# `using`
+with `IDisposable`, Python's `with`, Go's `defer`, Zig's `defer`. If `scoped`
+were just another `using`, it would be solving a solved problem. What's
+genuinely different is the form:
+
+| | C++ RAII | C# `using` | Zig `defer` | `scoped` |
+|---|---|---|---|---|
+| mechanism | destructor on a class | `IDisposable` interface | block defer | block defer (sugar) |
+| scopes an arbitrary pair of free procs? | no — needs a class | no — needs an `IDisposable` type | yes, but hand-written | yes, named and inferred |
+| declarative resource definition? | no | no | no | yes — `File :: scoped { ... }` |
+| failure gate (constructor says "skip the body") | no | no | n/a | yes |
+| requires an object model | yes | yes | no | no |
+
+- **No interface, no object model.** C# `using` demands the type implement
+  `IDisposable`; C++ demands a class with a destructor. `scoped` pairs two
+  free procedures — `file_open`/`file_close` need no interface, no class, no
+  lifecycle the type system must understand. In C#, scoping an arbitrary
+  open/close pair means writing a wrapper class; here the pair *is* the
+  declaration.
+- **Declarative and reusable.** `File :: scoped { file_open, file_close }`
+  defines the resource once; `File(...) { ... }` uses it everywhere. C++'s
+  scope-guard idiom and C#'s wrapper classes re-express the pairing per type.
+  The boilerplate moves into the language.
+- **It is literally defer.** The desugar is `file_open(&it); defer
+  file_close(&it);` — the same mechanism you'd write by hand. So it stacks
+  LIFO with ordinary defers and mixes with raw `defer` freely. C# `using` and
+  C++ destructors are separate mechanisms; `scoped` is the language's existing
+  resource tool, made declarative.
+- **The failure gate** (constructor returns `false` → skip the body) doesn't
+  exist in `using` or destructors — you'd hand-roll the `if (Begin()) { ...
+  End(); }` shape.
+- **It is not an ownership system.** It never claims to manage object
+  lifecycles, moves, or composition — it's a scope guard, nothing more. That
+  isn't a limitation; it's what keeps it from dragging in RAII's machinery
+  and OOP flavour.
+
+So: the *mechanism* is old, the *form* is new in the way that matters here — a
+declarative, interface-free, defer-based, gate-capable resource construct that
+fits a data-oriented, non-OOP language. Its value is the pairing guarantee at
+zero machinery.
 
 ## The Clay problem, and immediate-mode UI
 
@@ -162,18 +253,102 @@ Window("Debug") {
 rebuilt each pass, the same scoped blocks re-declare the UI every frame. You
 still own the memory (arena/stack), but the pairing is guaranteed by syntax.
 
+### Why RAII and destructors wouldn't fit here
+
+Immediate-mode UI's unit of life is not a *value* with a lifetime — it's a
+*scope*: enter, declare children, leave, every frame, in strict stack order.
+Destructors are the wrong tool:
+
+- **Destructors are tied to value lifetimes, not block nesting.** They fire
+  when the *value* dies — including moves and container teardown — so you lose
+  the "exactly this block, exactly this frame" guarantee.
+- **The classic bug is a mismatched Begin/End, not leaked ownership.** RAII
+  solves ownership; the UI problem is *pairing*. A block guarantees the
+  pairing by construction; a destructor only guarantees cleanup.
+- **Composition doesn't help.** RAII's strength is an ownership hierarchy of
+  values (a struct owns its members). A UI tree is a *transient declaration
+  hierarchy*, rebuilt each frame — there's no ownership graph for RAII to
+  manage.
+
+This is why `scoped` isn't a poor man's RAII — it's the tool for
+scope-shaped problems, which is where real resource pairing lives.
+
+## Escaping, the failure gate, and ImGui's Begin/End
+
+### What can escape the scope
+
+The resource (`it`) is block-local by construction — it can't be returned,
+stored, or outlive the block. Two things can, and both are intended:
+
+- **Data the block produces.** `scoped` only bounds the resource, not what the
+  body does with it. A command list recorded inside `Renderer { ... }`
+  survives the block; only the renderer is torn down.
+- **In immediate mode, nothing else needs to.** The tree is rebuilt every
+  frame, so no window or layout context ever needs to escape — you re-enter
+  the same scopes each frame, and persistent state (an open flag, a size)
+  lives in a plain variable.
+
+### The failure gate: when the constructor returns `false`
+
+ImGui's `Begin(name)` returns `false` when the window is collapsed, and the
+canonical C++ pattern is:
+
+```cpp
+if (ImGui::Begin("Debug")) { ...; ImGui::End(); }
+```
+
+A scoped block needs a rule for "the constructor says don't run": **if the
+constructor returns `false`, the body is skipped and no cleanup runs.** Then
+the ImGui pattern needs no `if`:
+
+```odin
+Window("Debug") {
+	// only runs while the window is open — nothing to close
+}
+```
+
+Clay's `layout_begin` always succeeds, so it never needs the gate; ImGui's
+does. (A Zig-style `errdefer` variant, cleaning up on early failure *inside*
+the body, is a separate later option.)
+
+### Why ImGui didn't use RAII for Begin/End
+
+- `Begin` returns a bool — a constructor can't "not create", so RAII would
+  carry a validity flag and check it everywhere. The `if (Begin) { ... End }`
+  shape handles the collapsed case naturally.
+- Immediate mode is anti-hidden-state: bare `Begin()`/`End()` keep the frame
+  structure visible.
+- Game C++ is often built `-fno-exceptions`; destructor cleanup on exception
+  unwind is exactly what you don't want mid-frame.
+- The ecosystem bolted RAII wrappers (`ImScoped`, `ScopedWindow`) on anyway —
+  proof the pairing guarantee is wanted. `scoped` provides it natively,
+  block-shaped, with no object machinery.
+
 ## Open questions / future work
 
-- **Multiple resources in one scope** (`Thing1, Thing2 { ... }`): natural
-  extension — desugars to two makes and two defers (LIFO). Not in the first
-  cut; nested scope-blocks cover it today.
+- **Multiple resources in one scope**:
+
+  ```odin
+  File,
+  Window("Debug") as win,
+  Lock as guard {
+  	// `it` = the File, `win` = the Window, `guard` = the Lock
+  }
+  ```
+
+  Desugars to makes + defers stacked **LIFO** — the last declared resource
+  cleans up first (here: unlock the lock before closing the file). At most one
+  resource may use the implicit `it`; the rest need `as name` (order-based
+  implicit names would be unergonomic). An option worth discussing: ban the
+  implicit `it` in the multi case and force a name on every resource. Not in
+  the first cut — nested scoped blocks cover multiple resources today.
 - **Custom binding name**: `(...)` is now constructor args, so a custom name
-  would need a different spelling (e.g. `Thing as handle { ... }`). A small
+  would need a different spelling (e.g. `File as f { ... }`). A small
   parser extension, deferred.
-- **Explicit resource type** vs inference from `make_thing`: inference is the
+- **Explicit resource type** vs inference from `file_open`: inference is the
   proposed default; an explicit `type:` field is the fallback if inference gets
-  awkward (e.g. overloaded or generic `make_thing`).
+  awkward (e.g. overloaded or generic `file_open`).
 - **Failure handling**: `errdefer`-style cleanup only on early exit.
-- **Escape analysis**: rejecting a scope-block value that aliases `it`.
-- **`defer` spelling**: `defer cleanup(&it)` vs `defer(cleanup(&it))` — to be
+- **Escape analysis**: rejecting a scoped block value that aliases `it`.
+- **`defer` spelling**: `defer file_close(&it)` vs `defer(file_close(&it))` — to be
   settled with the rest of the expression grammar.
