@@ -359,6 +359,19 @@ test_lex_comments :: proc(t: ^testing.T) {
 				Token{offset = 3, value = SimpleToken.EOF},
 			},
 		},
+		{
+			src = "x = 1 // comment\ny = 2",
+			expected = []Token{
+				Token{offset = 0, value = Identifier("x")},
+				Token{offset = 2, value = SimpleToken.Equals},
+				Token{offset = 4, value = Number("1")},
+				Token{offset = 16, value = SimpleToken.NewLine},
+				Token{offset = 17, value = Identifier("y")},
+				Token{offset = 19, value = SimpleToken.Equals},
+				Token{offset = 21, value = Number("2")},
+				Token{offset = 22, value = SimpleToken.EOF},
+			},
+		},
 	}
 
 	for tc, i in cases {
