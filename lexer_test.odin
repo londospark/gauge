@@ -319,6 +319,54 @@ test_lex_errors :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_lex_comments :: proc(t: ^testing.T) {
+	cases := []TestCase{
+		{
+			src = "// hello",
+			expected = []Token{
+				Token{offset = 8, value = SimpleToken.EOF},
+			},
+		},
+		{
+			src = "a // c\nb",
+			expected = []Token{
+				Token{offset = 0, value = Identifier("a")},
+				Token{offset = 6, value = SimpleToken.NewLine},
+				Token{offset = 7, value = Identifier("b")},
+				Token{offset = 8, value = SimpleToken.EOF},
+			},
+		},
+		{
+			src = "a // c",
+			expected = []Token{
+				Token{offset = 0, value = Identifier("a")},
+				Token{offset = 6, value = SimpleToken.EOF},
+			},
+		},
+		{
+			src = "a / b",
+			expected = []Token{
+				Token{offset = 0, value = Identifier("a")},
+				Token{offset = 2, value = SimpleToken.Slash},
+				Token{offset = 4, value = Identifier("b")},
+				Token{offset = 5, value = SimpleToken.EOF},
+			},
+		},
+		{
+			src = "//\n",
+			expected = []Token{
+				Token{offset = 2, value = SimpleToken.NewLine},
+				Token{offset = 3, value = SimpleToken.EOF},
+			},
+		},
+	}
+
+	for tc, i in cases {
+		check_case(t, tc, i)
+	}
+}
+
+@(test)
 test_lex_program :: proc(t: ^testing.T) {
 	cases := []TestCase{
 		{

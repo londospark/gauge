@@ -84,7 +84,12 @@ lex :: proc(lexer: ^Lexer, allocator := context.allocator) -> (tokens: [dynamic]
 			case '+':  append(&result, lex_single(lexer, .Plus))
 			case '-':  append(&result, lex_single(lexer, .Minus))
 			case '*':  append(&result, lex_single(lexer, .Star))
-			case '/':  append(&result, lex_single(lexer, .Slash)) // Look into comments here too
+			case '/':
+				if next, ok := peek_at(lexer, 1); ok && next == '/' {
+					skip_line_comment(lexer)
+				} else {
+					append(&result, lex_single(lexer, .Slash))
+				}
 			case '^':  append(&result, lex_single(lexer, .Hat))
 			case '\n': append(&result, lex_single(lexer, .NewLine))
 			case 'a'..='z' :
@@ -129,6 +134,12 @@ advance :: proc(lexer: ^Lexer) -> (u8, bool) {
 	ch := lexer.source[lexer.position]
 	lexer.position += 1
 	return ch, true
+}
+
+peek_at :: proc(lexer: ^Lexer, ahead: int) -> (u8, bool) {
+	pos := lexer.position + ahead
+	if pos >= len(lexer.source) do return 0, false
+	return lexer.source[pos], true
 }
 
 lex_identifier :: proc(lexer: ^Lexer) -> (Token, bool) {
@@ -190,6 +201,14 @@ lex_number :: proc(lexer: ^Lexer) -> (Token, bool) {
 	}
 
 	return Token { offset = start, value = Number(lexer.source[start:lexer.position]) }, start != lexer.position
+}
+
+skip_line_comment :: proc(lexer: ^Lexer) {
+	for {
+		c, ok := peek(lexer)
+		if !ok || c == '\n' do break
+		advance(lexer)
+	}
 }
 
 eat_whitespace :: proc(lexer: ^Lexer) {

@@ -31,6 +31,7 @@ All tools live in the project's devenv shell — there is nothing installed ad-h
 - Newlines are explicit `NewLine` tokens; the parser decides if one ends a statement.
 - `peek`/`advance` return `(u8, bool)` — `false` means EOF. Never use `0` as an EOF sentinel (NUL is a valid byte).
 - `lex_identifier`/`lex_string`/`lex_number` return `(Token, bool)`; `lex` returns `(tokens, ok)` and stops on the first error.
+- Line comments (`//`) are skipped by the lexer; `Slash` is only emitted when the `/` isn't followed by another `/`.
 - String values are escape-aware (`\"`, `\\`) and are zero-copy slices of the source.
 
 ## Formatting (manual — there is no odinfmt)
