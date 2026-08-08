@@ -25,6 +25,8 @@ SimpleToken :: enum {
 	LSquirly,
 	RSquirly,
 	Comma,
+	Equals,
+	Hat,
 	NewLine,
 	EOF,
 }
@@ -69,26 +71,19 @@ lex :: proc(lexer: ^Lexer, allocator := context.allocator) -> (tokens: [dynamic]
 
 		switch lexer.source[lexer.position] {
 			case ':':
-				append(&result, Token { offset = lexer.position, value = .Colon})
-				advance(lexer)
+				lex_single(lexer, &result, .Colon)
 			case '(':
-				append(&result, Token { offset = lexer.position, value = .LParen})
-				advance(lexer)
+				lex_single(lexer, &result, .LParen)
 			case ')':
-				append(&result, Token { offset = lexer.position, value = .RParen})
-				advance(lexer)
+				lex_single(lexer, &result, .RParen)
 			case '{':
-				append(&result, Token { offset = lexer.position, value = .LSquirly})
-				advance(lexer)
+				lex_single(lexer, &result, .LSquirly)
 			case '}':
-				append(&result, Token { offset = lexer.position, value = .RSquirly})
-				advance(lexer)
+				lex_single(lexer, &result, .RSquirly)
 			case ',':
-				append(&result, Token { offset = lexer.position, value = .Comma})
-				advance(lexer)
+				lex_single(lexer, &result, .Comma)
 			case '\n':
-				append(&result, Token { offset = lexer.position, value = .NewLine})
-				advance(lexer)
+				lex_single(lexer, &result, .NewLine)
 			case 'a'..='z' :
 				token, _ := lex_identifier(lexer)
 				append(&result, token)
@@ -113,6 +108,11 @@ lex :: proc(lexer: ^Lexer, allocator := context.allocator) -> (tokens: [dynamic]
 	append(&result, Token { offset = len(lexer.source), value = .EOF })
 
 	return result, ok
+}
+
+lex_single :: proc(lexer: ^Lexer, result: ^[dynamic]Token, token_kind: SimpleToken) {
+	append(result, Token { offset = lexer.position, value = token_kind })
+	advance(lexer)
 }
 
 peek :: proc(lexer: ^Lexer) -> (u8, bool) {
