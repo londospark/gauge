@@ -4,13 +4,17 @@ A small programming language inspired by **Jai** and **Odin**, written in Odin i
 
 > **Status:** lexer done, parser next.
 
+## Design
+
+A consistent syntax that just does what people want it to do — see [docs/design.md](docs/design.md) for the principles, the lineage (Pascal/Wirth vs C), and the resources behind the language.
+
 ## What's here
 
-- A **cursor-based lexer** (`main.odin`) that turns source text into a token stream.
+- A **cursor-based lexer** (`lexer/`) that turns source text into a token stream.
 - Tokens carry **byte offsets**, not line/column numbers — positions stay O(1) to jump to, and the editor/compiler pipeline never has to count newlines.
 - **Newlines are explicit tokens**, so the parser decides whether one ends a statement.
 - Token values are **zero-copy slices** of the source; strings are escape-aware (`\"`, `\\`).
-- A **table-driven test suite** (`lexer_test.odin`) run with `odin test .`.
+- A **table-driven test suite** (`lexer/lexer_test.odin`) run with `odin test lexer/ parser/`.
 
 ## The lexer at a glance
 

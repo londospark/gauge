@@ -6,15 +6,16 @@ Guidance for AI agents and contributors working on londolang.
 
 All tools live in the project's devenv shell — there is nothing installed ad-hoc:
 
-- Tests: `devenv shell --quiet odin test .`
+- Tests: `devenv shell --quiet odin test lexer/ parser/`
 - Run the demo: `devenv shell --quiet odin run .`
 - Build: `devenv shell --quiet odin build .`
 - Debug build: `devenv shell --quiet odin build . -debug`, then `devenv shell --quiet gf2 ./londolang`
 
 ## Workflow
 
-- **Run the tests before every commit and push.** `devenv shell --quiet odin test .` must pass; the suite is in `lexer_test.odin`.
-- When lexer behaviour changes, update the expected tokens in `lexer_test.odin` — offsets included.
+- **Run the tests before every commit and push.** `devenv shell --quiet odin test lexer/ parser/` must pass; suites live next to their packages (`lexer/lexer_test.odin`, `parser/parser_test.odin`).
+- **Scan for `@Note` before every commit.** Grep the code for `@Note` and review each one — confirm it's a deliberate design decision or flag it for action. Once a `@Note` has been reviewed, don't re-review it on future commits.
+- When lexer behaviour changes, update the expected tokens in `lexer/lexer_test.odin` — offsets included.
 - Keep the Sublime build systems (`londolang.sublime-project`) and `.project.gf` in sync with any command or debugger changes.
 - Comments explain **why**, never restate the code.
 
@@ -27,12 +28,13 @@ All tools live in the project's devenv shell — there is nothing installed ad-h
 
 ## Design notes
 
-- `Token` is `{ offset: int, value: Value }`. Positions are **byte offsets**, never line/col.
+- `lexer.Token` is `{ offset: int, value: Value }`. Positions are **byte offsets**, never line/col.
 - Newlines are explicit `NewLine` tokens; the parser decides if one ends a statement.
 - `peek`/`advance` return `(u8, bool)` — `false` means EOF. Never use `0` as an EOF sentinel (NUL is a valid byte).
-- `lex_identifier`/`lex_string`/`lex_number` return `(Token, bool)`; `lex` returns `(tokens, ok)` and stops on the first error.
+- In the `lexer` package: `lex_identifier`/`lex_string`/`lex_number` return `(Token, bool)`; `lex` returns `(tokens, ok)` and stops on the first error.
 - Line comments (`//`) are skipped by the lexer; `Slash` is only emitted when the `/` isn't followed by another `/`.
 - String values are escape-aware (`\"`, `\\`) and are zero-copy slices of the source.
+- The `parser` package imports `../lexer`; everything else imports by package path.
 
 ## Formatting (manual — there is no odinfmt)
 
@@ -40,7 +42,7 @@ Match the project's hand-aligned style:
 
 - **Tabs** for indentation, one level per nest.
 - `::` for all declarations (constants, types, procedures).
-- Align the colons in consecutive field declarations and the `::` in consecutive type/constant declarations within a block:
+- Align the **types** in consecutive field declarations and the `::` in consecutive type/constant declarations within a block:
 
   ```odin
   Identifier    :: distinct string
@@ -50,10 +52,12 @@ Match the project's hand-aligned style:
 
   ```odin
   Lexer :: struct {
-  	source  : string,
+  	source:   string,
   	position: int,
   }
   ```
+
+- Alignment is the editor's/agent's job: re-align affected blocks on every edit, even small or restricted ones.
 
 - Align the `=` in multi-line struct/union literals.
 - One space around binary operators; one space after commas.
