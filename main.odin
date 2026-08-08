@@ -70,20 +70,13 @@ lex :: proc(lexer: ^Lexer, allocator := context.allocator) -> (tokens: [dynamic]
 		}
 
 		switch lexer.source[lexer.position] {
-			case ':':
-				lex_single(lexer, &result, .Colon)
-			case '(':
-				lex_single(lexer, &result, .LParen)
-			case ')':
-				lex_single(lexer, &result, .RParen)
-			case '{':
-				lex_single(lexer, &result, .LSquirly)
-			case '}':
-				lex_single(lexer, &result, .RSquirly)
-			case ',':
-				lex_single(lexer, &result, .Comma)
-			case '\n':
-				lex_single(lexer, &result, .NewLine)
+			case ':':  append(&result, lex_single(lexer, .Colon))
+			case '(':  append(&result, lex_single(lexer, .LParen))
+			case ')':  append(&result, lex_single(lexer, .RParen))
+			case '{':  append(&result, lex_single(lexer, .LSquirly))
+			case '}':  append(&result, lex_single(lexer, .RSquirly))
+			case ',':  append(&result, lex_single(lexer, .Comma))
+			case '\n': append(&result, lex_single(lexer, .NewLine))
 			case 'a'..='z' :
 				token, _ := lex_identifier(lexer)
 				append(&result, token)
@@ -110,9 +103,10 @@ lex :: proc(lexer: ^Lexer, allocator := context.allocator) -> (tokens: [dynamic]
 	return result, ok
 }
 
-lex_single :: proc(lexer: ^Lexer, result: ^[dynamic]Token, token_kind: SimpleToken) {
-	append(result, Token { offset = lexer.position, value = token_kind })
+lex_single :: proc(lexer: ^Lexer, token_kind: SimpleToken) -> Token {
+	token := Token { offset = lexer.position, value = token_kind }
 	advance(lexer)
+	return token
 }
 
 peek :: proc(lexer: ^Lexer) -> (u8, bool) {
