@@ -55,5 +55,7 @@ Number :: struct {
 	// @Note: this could be a numeric type, but at this point I
 	//        don't think that it would be wise because it would
 	//        have to be a float, and there's precision loss there.
+	// @Review: resolved — keep raw text, parse to a typed value
+	//          in the constant-folding pass.
 	value:      string,
 }
