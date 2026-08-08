@@ -3,17 +3,13 @@ let
   odin = inputs.odin.packages.${pkgs.stdenv.hostPlatform.system}.odin;
 in
 {
-  # gf (gf2) — graphical GDB frontend (the one Tsoding uses).
-  # Editor: Sublime Text (the gvim-sync is disabled via .project.gf).
   packages = [ pkgs.gf ];
 
   languages.odin = {
     enable = true;
     # Master build from odin-nightly-flake (not the nixpkgs version)
     package = odin;
-    # No Odin language server
     lsp.enable = false;
-    # GDB for real debugging (build with `odin build . -debug`)
     debugger = pkgs.gdb;
   };
 
