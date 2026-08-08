@@ -1,0 +1,35 @@
+{
+	"folders":
+	[
+		{
+			"path": ".",
+		},
+		{
+			"path": "~/.local/share/odin-root",
+			"name": "Odin stdlib (core + vendor)",
+		},
+	],
+	"build_systems":
+	[
+		{
+			"name": "Odin: Build",
+			"working_dir": "${project_path}",
+			"cmd": ["devenv", "shell", "--quiet", "odin", "build", "."],
+		},
+		{
+			"name": "Odin: Run",
+			"working_dir": "${project_path}",
+			"cmd": ["devenv", "shell", "--quiet", "odin", "run", "."],
+		},
+		{
+			"name": "Odin: Build (release)",
+			"working_dir": "${project_path}",
+			"cmd": ["devenv", "shell", "--quiet", "odin", "build", ".", "-o:speed"],
+		},
+		{
+			"name": "Odin: Test",
+			"working_dir": "${project_path}",
+			"cmd": ["devenv", "shell", "--quiet", "odin", "test", "."],
+		},
+	],
+}
