@@ -3,6 +3,9 @@ let
   odin = inputs.odin.packages.${pkgs.stdenv.hostPlatform.system}.odin;
 in
 {
+  # Graphical debugger frontend for gdb (opens in the browser).
+  packages = [ pkgs.gdbgui ];
+
   languages.odin = {
     enable = true;
     # Master build from odin-nightly-flake (not the nixpkgs version)
