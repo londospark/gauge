@@ -9,6 +9,8 @@ in
     package = odin;
     # No Odin language server
     lsp.enable = false;
+    # GDB for real debugging (build with `odin build . -debug`)
+    debugger = pkgs.gdb;
   };
 
   env.ODIN_ROOT = "${odin}/share";

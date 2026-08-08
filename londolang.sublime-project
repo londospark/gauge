@@ -27,6 +27,11 @@
 			"cmd": ["devenv", "shell", "--quiet", "odin", "build", ".", "-o:speed"],
 		},
 		{
+			"name": "Odin: Build (debug)",
+			"working_dir": "${project_path}",
+			"cmd": ["devenv", "shell", "--quiet", "odin", "build", ".", "-debug"],
+		},
+		{
 			"name": "Odin: Test",
 			"working_dir": "${project_path}",
 			"cmd": ["devenv", "shell", "--quiet", "odin", "test", "."],

@@ -2,3 +2,5 @@ result
 .devenv
 .direnv
 *.sublime-workspace
+/londolang
+*.o
