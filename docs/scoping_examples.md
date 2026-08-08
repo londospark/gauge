@@ -272,31 +272,32 @@ block-scoped construction.
 ### The `scoped` version
 
 ```odin
-Layout :: scoped { element_open, element_close }
+Layout     :: scoped { element_open, element_close }
+ClayLayout :: scoped { clay_begin_layout, clay_end_layout }
 
-clay_begin_layout()
-
-Layout(header_id, grow, {34, 34, 34, 255}) {
-	Layout(title_id, padding(8)) {
-		Text("Hello, Clay!")
+commands := ClayLayout {
+	Layout(header_id, grow, {34, 34, 34, 255}) {
+		Layout(title_id, padding(8)) {
+			Text("Hello, Clay!")
+		}
 	}
 }
-
-commands := clay_end_layout(delta_time)
 ```
 
 `element_open(id, config)` maps to `open_element_with_id` +
 `configure_open_element`; `element_close` to `close_element`. The block is the
 real scope — no macro, no `for`-loop trick, and the pairing is guaranteed by
 the language. The configuration arrives as constructor args, so a named,
-parameterised element is just `Layout(header_id, ...)`. (The frame's
-begin/end stay as plain calls here because `clay_end_layout` returns the
-render commands — the scoped pair bounds the *element* nesting, which is
-where the pairing bugs live.)
+parameterised element is just `Layout(header_id, ...)`.
+
+The frame is a scoped resource too. `clay_begin_layout` takes no pointer, so
+its resource type is unit — and because `clay_end_layout` returns the render
+commands, the scoped block's value is that return: `commands := ClayLayout {
+... }`. The destructor's output escapes exactly where the scope ends.
 
 This is the same idea Clay's macro reaches for — `scoped` is its
-language-level form, and it composes (LIFO), gates (Begin-can-fail), and
-reuses (a named resource) where the macro cannot.
+language-level form, and it composes (LIFO), gates (Begin-can-fail), reuses
+(a named resource), and yields a value where the macro cannot.
 
 ## Why these aren't just macros or wrappers
 

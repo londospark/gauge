@@ -86,9 +86,19 @@ constructor its allocator or arena, and nothing is hidden behind a runtime.
   option, not in the first cut.)
 - **Multiple defers run LIFO** (reverse order of registration), matching Odin.
   Nesting scoped blocks therefore cleans up inner resources first.
-- **A scope-block is still a block**, so it has a value (its last expression);
-  the cleanup runs at exit, after that value is computed. See the caveat above
-  about not returning something that aliases `it`.
+- **Unit resource type.** If the constructor takes no pointer parameter, the
+  resource type is unit and there's no `it` binding — the block is just
+  begin/body/end: `ClayLayout { ... }` calls `clay_begin_layout()` then
+  `clay_end_layout()`.
+- **Value-producing destructor.** If the destructor returns a non-unit type,
+  that return is the scoped block's *value*, produced at scope exit after the
+  body: `commands := ClayLayout { ... }` yields what `clay_end_layout`
+  returns, so the frame's render commands escape exactly where the scope ends.
+  If the destructor returns unit, the block's value is its last expression.
+- **A scope-block is still a block**, so it has a value (its last expression,
+  or the destructor's return per the rule above); the cleanup runs at exit,
+  after that value is computed. See the caveat above about not returning
+  something that aliases `it`.
 
 ## Pass structure
 
@@ -288,6 +298,10 @@ stored, or outlive the block. Two things can, and both are intended:
 - **Data the block produces.** `scoped` only bounds the resource, not what the
   body does with it. A command list recorded inside `Renderer { ... }`
   survives the block; only the renderer is torn down.
+- **The block's value can be the destructor's output.** When the destructor
+  returns a value (e.g. `clay_end_layout` → the render commands), that value is
+  the scoped block's value: `commands := ClayLayout { ... }`. The output
+  escapes exactly where the scope ends.
 - **In immediate mode, nothing else needs to.** The tree is rebuilt every
   frame, so no window or layout context ever needs to escape — you re-enter
   the same scopes each frame, and persistent state (an open flag, a size)
