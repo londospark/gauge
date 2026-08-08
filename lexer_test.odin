@@ -3,8 +3,9 @@ package main
 import "core:testing"
 
 TestCase :: struct {
-	src:      string,
-	expected: []Token,
+	src:          string,
+	expected:     []Token,
+	expect_error: bool,
 }
 
 @(test)
@@ -71,11 +72,21 @@ test_lex :: proc(t: ^testing.T) {
 			},
 		},
 		{
+			src = "a,b",
+			expected = []Token{
+				Token{offset = 0, value = Identifier("a")},
+				Token{offset = 1, value = SimpleToken.Comma},
+				Token{offset = 2, value = Identifier("b")},
+				Token{offset = 3, value = SimpleToken.EOF},
+			},
+		},
+		{
 			src = "\"abc",
 			expected = []Token{
 				Token{offset = 0, value = StringLiteral("abc")},
 				Token{offset = 4, value = SimpleToken.EOF},
 			},
+			expect_error = true,
 		},
 		{
 			src = "\"abc\"",
@@ -107,6 +118,62 @@ test_lex :: proc(t: ^testing.T) {
 			},
 		},
 		{
+			src = "123",
+			expected = []Token{
+				Token{offset = 0, value = Number("123")},
+				Token{offset = 3, value = SimpleToken.EOF},
+			},
+		},
+		{
+			src = "42 7",
+			expected = []Token{
+				Token{offset = 0, value = Number("42")},
+				Token{offset = 3, value = Number("7")},
+				Token{offset = 4, value = SimpleToken.EOF},
+			},
+		},
+		{
+			src = "12a",
+			expected = []Token{
+				Token{offset = 0, value = Number("12")},
+				Token{offset = 2, value = Identifier("a")},
+				Token{offset = 3, value = SimpleToken.EOF},
+			},
+		},
+		{
+			src = "abc123",
+			expected = []Token{
+				Token{offset = 0, value = Identifier("abc")},
+				Token{offset = 3, value = Number("123")},
+				Token{offset = 6, value = SimpleToken.EOF},
+			},
+		},
+		{
+			src = "3.14",
+			expected = []Token{
+				Token{offset = 0, value = Number("3.14")},
+				Token{offset = 4, value = SimpleToken.EOF},
+			},
+		},
+		{
+			src = "12(3)",
+			expected = []Token{
+				Token{offset = 0, value = Number("12")},
+				Token{offset = 2, value = SimpleToken.LParen},
+				Token{offset = 3, value = Number("3")},
+				Token{offset = 4, value = SimpleToken.RParen},
+				Token{offset = 5, value = SimpleToken.EOF},
+			},
+		},
+		{
+			src = "a$b",
+			expected = []Token{
+				Token{offset = 0, value = Identifier("a")},
+				Token{offset = 3, value = SimpleToken.EOF},
+			},
+			expect_error = true,
+		},
+		{
 			src = SimpleProgram,
 			expected = []Token{
 				Token{offset = 0, value = SimpleToken.NewLine},
@@ -120,18 +187,23 @@ test_lex :: proc(t: ^testing.T) {
 				Token{offset = 15, value = Identifier("print")},
 				Token{offset = 20, value = SimpleToken.LParen},
 				Token{offset = 21, value = StringLiteral("Hellope")},
-				Token{offset = 30, value = SimpleToken.RParen},
-				Token{offset = 31, value = SimpleToken.NewLine},
-				Token{offset = 32, value = SimpleToken.RSquirly},
-				Token{offset = 33, value = SimpleToken.EOF},
+				Token{offset = 30, value = SimpleToken.Comma},
+				Token{offset = 32, value = Number("42")},
+				Token{offset = 34, value = SimpleToken.RParen},
+				Token{offset = 35, value = SimpleToken.NewLine},
+				Token{offset = 36, value = SimpleToken.RSquirly},
+				Token{offset = 37, value = SimpleToken.EOF},
 			},
 		},
 	}
 
 	for tc, i in cases {
 		lexer := make_lexer(tc.src)
-		tokens := lex(&lexer)
+		tokens, ok := lex(&lexer)
 		defer delete(tokens)
+
+		testing.expectf(t, ok != tc.expect_error,
+			"case %d (%q): ok=%v, want %v", i, tc.src, ok, !tc.expect_error)
 
 		testing.expectf(t, len(tokens) == len(tc.expected),
 			"case %d (%q): got %d tokens, want %d: %v",

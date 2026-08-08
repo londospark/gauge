@@ -24,6 +24,7 @@ SimpleToken :: enum {
 	RParen,
 	LSquirly,
 	RSquirly,
+	Comma,
 	NewLine,
 	EOF,
 }
@@ -35,12 +36,16 @@ Lexer :: struct {
 
 SimpleProgram :: `
 main :: () {
-	print("Hellope")
+	print("Hellope", 42)
 }`
 
 main :: proc() {
 	lexer := make_lexer(SimpleProgram)
-	tokens := lex(&lexer, context.temp_allocator)
+	tokens, ok := lex(&lexer, context.temp_allocator)
+
+	if !ok {
+		fmt.eprintln("lexing failed")
+	}
 
 	for token in tokens {
 		fmt.printfln("Token: %v", token)
@@ -51,8 +56,9 @@ make_lexer :: proc(input: string) -> Lexer {
 	return Lexer { source = input, position = 0}
 }
 
-lex :: proc(lexer: ^Lexer, allocator := context.allocator) -> [dynamic]Token {
+lex :: proc(lexer: ^Lexer, allocator := context.allocator) -> (tokens: [dynamic]Token, ok: bool) {
 	result := make([dynamic]Token, allocator)
+	ok = true
 
 	lexing: for lexer.position < len(lexer.source) {
 		eat_whitespace(lexer)
@@ -77,22 +83,36 @@ lex :: proc(lexer: ^Lexer, allocator := context.allocator) -> [dynamic]Token {
 			case '}':
 				append(&result, Token { offset = lexer.position, value = .RSquirly})
 				advance(lexer)
+			case ',':
+				append(&result, Token { offset = lexer.position, value = .Comma})
+				advance(lexer)
 			case '\n':
 				append(&result, Token { offset = lexer.position, value = .NewLine})
 				advance(lexer)
 			case 'a'..='z' :
-				append(&result, lex_identifier(lexer))
+				token, _ := lex_identifier(lexer)
+				append(&result, token)
+			case '0'..='9' :
+				token, _ := lex_number(lexer)
+				append(&result, token)
 			case '"' :
-				append(&result, lex_string(lexer))
+				token, token_ok := lex_string(lexer)
+				append(&result, token)
+				if !token_ok {
+					fmt.eprintfln("unterminated string at byte %d", token.offset)
+					ok = false
+					break lexing
+				}
 			case:
 				fmt.eprintfln("UNRECOGNISED: %v", lexer)
+				ok = false
 				break lexing
 		}
 	}
 
 	append(&result, Token { offset = len(lexer.source), value = .EOF })
 
-	return result
+	return result, ok
 }
 
 peek :: proc(lexer: ^Lexer) -> (u8, bool) {
@@ -107,24 +127,25 @@ advance :: proc(lexer: ^Lexer) -> (u8, bool) {
 	return ch, true
 }
 
-lex_identifier :: proc(lexer: ^Lexer) -> Token {
+lex_identifier :: proc(lexer: ^Lexer) -> (Token, bool) {
 	start := lexer.position
 	for {
 		c, ok := peek(lexer)
 		if !ok || !is_lowercase(c) do break
 		advance(lexer)
 	}
-	return Token {offset = start, value = Identifier(lexer.source[start:lexer.position]) }
+	return Token {offset = start, value = Identifier(lexer.source[start:lexer.position]) }, start != lexer.position
 }
 
-lex_string :: proc(lexer: ^Lexer) -> Token {
+lex_string :: proc(lexer: ^Lexer) -> (Token, bool) {
 	token_start := lexer.position
 	advance(lexer)
 	start := lexer.position
 
 	for {
 		c, ok := peek(lexer)
-		if !ok || c == '"' do break
+		if !ok do break
+		if c == '"' do break
 		if c == '\\' {
 			advance(lexer)
 			if _, ok := peek(lexer); ok {
@@ -134,11 +155,37 @@ lex_string :: proc(lexer: ^Lexer) -> Token {
 			advance(lexer)
 		}
 	}
+	c, ok := peek(lexer)
+	terminated := ok && c == '"'
 	end := lexer.position
 
 	advance(lexer)
 
-	return Token { offset = token_start, value = StringLiteral(lexer.source[start:end]) }
+	return Token { offset = token_start, value = StringLiteral(lexer.source[start:end]) }, terminated
+}
+
+lex_number :: proc(lexer: ^Lexer) -> (Token, bool) {
+	start := lexer.position
+
+	for {
+		c, ok := peek(lexer)
+		if !ok || !is_digit(c) do break
+		advance(lexer)
+	}
+
+	maybe_dot, ok := peek(lexer)
+
+	if ok && maybe_dot == '.' {
+		advance(lexer)
+
+		for {
+			c, ok := peek(lexer)
+			if !ok || !is_digit(c) do break
+			advance(lexer)
+		}
+	}
+
+	return Token { offset = start, value = Number(lexer.source[start:lexer.position]) }, start != lexer.position
 }
 
 eat_whitespace :: proc(lexer: ^Lexer) {
