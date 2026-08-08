@@ -8,8 +8,36 @@ TestCase :: struct {
 	expect_error: bool,
 }
 
+TestProgram :: `
+main :: () {
+	answer = 40 + 2
+	print(answer)
+}`
+
+check_case :: proc(t: ^testing.T, tc: TestCase, i: int) {
+	lexer := make_lexer(tc.src)
+	tokens, ok := lex(&lexer)
+	defer delete(tokens)
+
+	testing.expectf(t, ok != tc.expect_error,
+		"case %d (%q): ok=%v, want %v", i, tc.src, ok, !tc.expect_error)
+
+	testing.expectf(t, len(tokens) == len(tc.expected),
+		"case %d (%q): got %d tokens, want %d: %v",
+		i, tc.src, len(tokens), len(tc.expected), tokens)
+
+	if len(tokens) != len(tc.expected) {
+		return
+	}
+	for j in 0 ..< len(tokens) {
+		testing.expectf(t, tokens[j] == tc.expected[j],
+			"case %d (%q): token %d: got %v, want %v",
+			i, tc.src, j, tokens[j], tc.expected[j])
+	}
+}
+
 @(test)
-test_lex :: proc(t: ^testing.T) {
+test_lex_basics :: proc(t: ^testing.T) {
 	cases := []TestCase{
 		{
 			src = "",
@@ -47,13 +75,22 @@ test_lex :: proc(t: ^testing.T) {
 			},
 		},
 		{
-			src = "::",
+			src = "\n",
 			expected = []Token{
-				Token{offset = 0, value = SimpleToken.Colon},
-				Token{offset = 1, value = SimpleToken.Colon},
-				Token{offset = 2, value = SimpleToken.EOF},
+				Token{offset = 0, value = SimpleToken.NewLine},
+				Token{offset = 1, value = SimpleToken.EOF},
 			},
 		},
+	}
+
+	for tc, i in cases {
+		check_case(t, tc, i)
+	}
+}
+
+@(test)
+test_lex_symbols :: proc(t: ^testing.T) {
+	cases := []TestCase{
 		{
 			src = "(){}",
 			expected = []Token{
@@ -65,10 +102,11 @@ test_lex :: proc(t: ^testing.T) {
 			},
 		},
 		{
-			src = "\n",
+			src = "::",
 			expected = []Token{
-				Token{offset = 0, value = SimpleToken.NewLine},
-				Token{offset = 1, value = SimpleToken.EOF},
+				Token{offset = 0, value = SimpleToken.Colon},
+				Token{offset = 1, value = SimpleToken.Colon},
+				Token{offset = 2, value = SimpleToken.EOF},
 			},
 		},
 		{
@@ -80,43 +118,16 @@ test_lex :: proc(t: ^testing.T) {
 				Token{offset = 3, value = SimpleToken.EOF},
 			},
 		},
-		{
-			src = "\"abc",
-			expected = []Token{
-				Token{offset = 0, value = StringLiteral("abc")},
-				Token{offset = 4, value = SimpleToken.EOF},
-			},
-			expect_error = true,
-		},
-		{
-			src = "\"abc\"",
-			expected = []Token{
-				Token{offset = 0, value = StringLiteral("abc")},
-				Token{offset = 5, value = SimpleToken.EOF},
-			},
-		},
-		{
-			src = "\"a\\\"b\"",
-			expected = []Token{
-				Token{offset = 0, value = StringLiteral("a\\\"b")},
-				Token{offset = 6, value = SimpleToken.EOF},
-			},
-		},
-		{
-			src = "\"a\\\\b\"",
-			expected = []Token{
-				Token{offset = 0, value = StringLiteral("a\\\\b")},
-				Token{offset = 6, value = SimpleToken.EOF},
-			},
-		},
-		{
-			src = "\"abc\"xyz",
-			expected = []Token{
-				Token{offset = 0, value = StringLiteral("abc")},
-				Token{offset = 5, value = Identifier("xyz")},
-				Token{offset = 8, value = SimpleToken.EOF},
-			},
-		},
+	}
+
+	for tc, i in cases {
+		check_case(t, tc, i)
+	}
+}
+
+@(test)
+test_lex_numbers :: proc(t: ^testing.T) {
+	cases := []TestCase{
 		{
 			src = "123",
 			expected = []Token{
@@ -165,6 +176,55 @@ test_lex :: proc(t: ^testing.T) {
 				Token{offset = 5, value = SimpleToken.EOF},
 			},
 		},
+	}
+
+	for tc, i in cases {
+		check_case(t, tc, i)
+	}
+}
+
+@(test)
+test_lex_strings :: proc(t: ^testing.T) {
+	cases := []TestCase{
+		{
+			src = "\"abc\"",
+			expected = []Token{
+				Token{offset = 0, value = StringLiteral("abc")},
+				Token{offset = 5, value = SimpleToken.EOF},
+			},
+		},
+		{
+			src = "\"a\\\"b\"",
+			expected = []Token{
+				Token{offset = 0, value = StringLiteral("a\\\"b")},
+				Token{offset = 6, value = SimpleToken.EOF},
+			},
+		},
+		{
+			src = "\"a\\\\b\"",
+			expected = []Token{
+				Token{offset = 0, value = StringLiteral("a\\\\b")},
+				Token{offset = 6, value = SimpleToken.EOF},
+			},
+		},
+		{
+			src = "\"abc\"xyz",
+			expected = []Token{
+				Token{offset = 0, value = StringLiteral("abc")},
+				Token{offset = 5, value = Identifier("xyz")},
+				Token{offset = 8, value = SimpleToken.EOF},
+			},
+		},
+	}
+
+	for tc, i in cases {
+		check_case(t, tc, i)
+	}
+}
+
+@(test)
+test_lex_operators :: proc(t: ^testing.T) {
+	cases := []TestCase{
 		{
 			src = "=",
 			expected = []Token{
@@ -225,6 +285,24 @@ test_lex :: proc(t: ^testing.T) {
 				Token{offset = 5, value = SimpleToken.EOF},
 			},
 		},
+	}
+
+	for tc, i in cases {
+		check_case(t, tc, i)
+	}
+}
+
+@(test)
+test_lex_errors :: proc(t: ^testing.T) {
+	cases := []TestCase{
+		{
+			src = "\"abc",
+			expected = []Token{
+				Token{offset = 0, value = StringLiteral("abc")},
+				Token{offset = 4, value = SimpleToken.EOF},
+			},
+			expect_error = true,
+		},
 		{
 			src = "a$b",
 			expected = []Token{
@@ -233,8 +311,18 @@ test_lex :: proc(t: ^testing.T) {
 			},
 			expect_error = true,
 		},
+	}
+
+	for tc, i in cases {
+		check_case(t, tc, i)
+	}
+}
+
+@(test)
+test_lex_program :: proc(t: ^testing.T) {
+	cases := []TestCase{
 		{
-			src = SimpleProgram,
+			src = TestProgram,
 			expected = []Token{
 				Token{offset = 0, value = SimpleToken.NewLine},
 				Token{offset = 1, value = Identifier("main")},
@@ -244,38 +332,24 @@ test_lex :: proc(t: ^testing.T) {
 				Token{offset = 10, value = SimpleToken.RParen},
 				Token{offset = 12, value = SimpleToken.LSquirly},
 				Token{offset = 13, value = SimpleToken.NewLine},
-				Token{offset = 15, value = Identifier("print")},
-				Token{offset = 20, value = SimpleToken.LParen},
-				Token{offset = 21, value = StringLiteral("Hellope")},
-				Token{offset = 30, value = SimpleToken.Comma},
-				Token{offset = 32, value = Number("42")},
-				Token{offset = 34, value = SimpleToken.RParen},
-				Token{offset = 35, value = SimpleToken.NewLine},
-				Token{offset = 36, value = SimpleToken.RSquirly},
-				Token{offset = 37, value = SimpleToken.EOF},
+				Token{offset = 15, value = Identifier("answer")},
+				Token{offset = 22, value = SimpleToken.Equals},
+				Token{offset = 24, value = Number("40")},
+				Token{offset = 27, value = SimpleToken.Plus},
+				Token{offset = 29, value = Number("2")},
+				Token{offset = 30, value = SimpleToken.NewLine},
+				Token{offset = 32, value = Identifier("print")},
+				Token{offset = 37, value = SimpleToken.LParen},
+				Token{offset = 38, value = Identifier("answer")},
+				Token{offset = 44, value = SimpleToken.RParen},
+				Token{offset = 45, value = SimpleToken.NewLine},
+				Token{offset = 46, value = SimpleToken.RSquirly},
+				Token{offset = 47, value = SimpleToken.EOF},
 			},
 		},
 	}
 
 	for tc, i in cases {
-		lexer := make_lexer(tc.src)
-		tokens, ok := lex(&lexer)
-		defer delete(tokens)
-
-		testing.expectf(t, ok != tc.expect_error,
-			"case %d (%q): ok=%v, want %v", i, tc.src, ok, !tc.expect_error)
-
-		testing.expectf(t, len(tokens) == len(tc.expected),
-			"case %d (%q): got %d tokens, want %d: %v",
-			i, tc.src, len(tokens), len(tc.expected), tokens)
-
-		if len(tokens) != len(tc.expected) {
-			continue
-		}
-		for j in 0 ..< len(tokens) {
-			testing.expectf(t, tokens[j] == tc.expected[j],
-				"case %d (%q): token %d: got %v, want %v",
-				i, tc.src, j, tokens[j], tc.expected[j])
-		}
+		check_case(t, tc, i)
 	}
 }
