@@ -40,7 +40,6 @@ main :: () {
 
 main :: proc() {
 	lexer := make_lexer(SimpleProgram)
-	//lexer := make_lexer("a ")
 	tokens := lex(&lexer, context.temp_allocator)
 
 	for token in tokens {
@@ -96,21 +95,23 @@ lex :: proc(lexer: ^Lexer, allocator := context.allocator) -> [dynamic]Token {
 	return result
 }
 
-peek :: proc(lexer: ^Lexer) -> u8 {
-	if lexer.position >= len(lexer.source) do return 0
-	return lexer.source[lexer.position]
+peek :: proc(lexer: ^Lexer) -> (u8, bool) {
+	if lexer.position >= len(lexer.source) do return 0, false
+	return lexer.source[lexer.position], true
 }
 
-advance :: proc(lexer: ^ Lexer) -> u8 {
-	if lexer.position >= len(lexer.source) do return 0
+advance :: proc(lexer: ^Lexer) -> (u8, bool) {
+	if lexer.position >= len(lexer.source) do return 0, false
 	ch := lexer.source[lexer.position]
 	lexer.position += 1
-	return ch
+	return ch, true
 }
 
 lex_identifier :: proc(lexer: ^Lexer) -> Token {
 	start := lexer.position
-	for peek(lexer) >= 'a' && peek(lexer) <= 'z' {
+	for {
+		c, ok := peek(lexer)
+		if !ok || !is_lowercase(c) do break
 		advance(lexer)
 	}
 	return Token {offset = start, value = Identifier(lexer.source[start:lexer.position]) }
@@ -118,28 +119,32 @@ lex_identifier :: proc(lexer: ^Lexer) -> Token {
 
 lex_string :: proc(lexer: ^Lexer) -> Token {
 	token_start := lexer.position
-	advance(lexer)               // opening quote
+	advance(lexer)
 	start := lexer.position
 
-	for peek(lexer) != 0 && peek(lexer) != '"' {
-		if peek(lexer) == '\\' {
-			advance(lexer)       // the backslash
-			if peek(lexer) != 0 {
-				advance(lexer)   // the escaped character
+	for {
+		c, ok := peek(lexer)
+		if !ok || c == '"' do break
+		if c == '\\' {
+			advance(lexer)
+			if _, ok := peek(lexer); ok {
+				advance(lexer)
 			}
 		} else {
 			advance(lexer)
 		}
 	}
-	end := lexer.position         // at the closing quote, or end of input
+	end := lexer.position
 
-	advance(lexer)                // consume the closing quote (no-op at EOF)
+	advance(lexer)
 
 	return Token { offset = token_start, value = StringLiteral(lexer.source[start:end]) }
 }
 
 eat_whitespace :: proc(lexer: ^Lexer) {
-	for is_whitespace(peek(lexer)) {
+	for {
+		c, ok := peek(lexer)
+		if !ok || !is_whitespace(c) do break
 		advance(lexer)
 	}
 }
