@@ -3,8 +3,9 @@ let
   odin = inputs.odin.packages.${pkgs.stdenv.hostPlatform.system}.odin;
 in
 {
-  # Graphical debugger frontend for gdb (opens in the browser).
-  packages = [ pkgs.gdbgui ];
+  # gf (gf2) — graphical GDB frontend (the one Tsoding uses).
+  # Editor: Sublime Text (the gvim-sync is disabled via .project.gf).
+  packages = [ pkgs.gf ];
 
   languages.odin = {
     enable = true;
