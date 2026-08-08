@@ -172,11 +172,14 @@ imports none of that:
 
 ## Is this new? (C++, C#, Python, Go, Zig)
 
-Honest framing up front: **the mechanism is not new.** A block-scoped cleanup
-guard has existed for decades — C++ `lock_guard`/scope-guard idiom, C# `using`
-with `IDisposable`, Python's `with`, Go's `defer`, Zig's `defer`. If `scoped`
-were just another `using`, it would be solving a solved problem. What's
-genuinely different is the form:
+**The mechanism is not new — the form is.** That's the whole claim, and it's
+worth stating as plainly as possible.
+
+The mechanism — a block-scoped cleanup guard — has existed for decades: C++
+`lock_guard`/scope-guard idiom, C# `using` with `IDisposable`, Python's
+`with`, Go's `defer`, Zig's `defer`. If `scoped` were just another `using`,
+it would be solving a solved problem. It isn't, and the difference is entirely
+in the *form* of the construct:
 
 | | C++ RAII | C# `using` | Zig `defer` | `scoped` |
 |---|---|---|---|---|
@@ -209,10 +212,12 @@ genuinely different is the form:
   isn't a limitation; it's what keeps it from dragging in RAII's machinery
   and OOP flavour.
 
-So: the *mechanism* is old, the *form* is new in the way that matters here — a
-declarative, interface-free, defer-based, gate-capable resource construct that
-fits a data-oriented, non-OOP language. Its value is the pairing guarantee at
-zero machinery.
+So: **the mechanism is old; the form is the contribution.** The value isn't a
+new way to clean up — it's the pairing guarantee at zero machinery, in a
+declarative, interface-free, defer-based, gate-capable form that fits a
+data-oriented, non-OOP language. That's what `scoped` adds over `using`, RAII,
+and `defer`. See [scoping_examples.md](scoping_examples.md) for a concrete
+walk-through of exactly this: macroless C → Clay's macro → `scoped`.
 
 ## The Clay problem, and immediate-mode UI
 

@@ -199,6 +199,105 @@ main :: () {
 Persistent state (flags, sizes, the window handle) lives in plain variables;
 the scoped resources only bound the per-frame begin/end pairs.
 
+## Clay: macroless C → the CLAY macro → `scoped`
+
+[Clay](https://github.com/nicbarker/clay) (Nic Barker's C UI layout library)
+is the clearest demonstration of the whole point. Building a nested element
+tree in C is painful, so Clay ships a macro to fake it. `scoped` is the
+language-level version.
+
+### The C, macroless
+
+Raw Clay — what you'd write without the macro. Every element is an explicit
+open/configure/close trio:
+
+```c
+clay_begin_layout();
+
+clay__open_element_with_id(CLAY_ID("Header"));
+clay__configure_open_element((Clay_ElementDeclaration){
+    .layout = { .sizing = { .width = CLAY_SIZING_GROW(), .height = CLAY_SIZING_GROW() } },
+    .backgroundColor = { 34, 34, 34, 255 }
+});
+
+    clay__open_element_with_id(CLAY_ID("Title"));
+    clay__configure_open_element((Clay_ElementDeclaration){
+        .layout = { .padding = { .top = 8, .bottom = 8 } }
+    });
+        clay__open_text_element(CLAY_STRING("Hello, Clay!"), (Clay_TextElementConfig){ });
+    clay__close_element();
+
+clay__close_element();
+
+Clay_RenderCommandArray commands = clay_end_layout(deltaTime);
+```
+
+Verbose — and every pair is a chance to forget a `clay__close_element()`. The
+indentation is doing work your eye expects the compiler to guarantee.
+
+### The CLAY macro
+
+Clay's answer is a macro that wraps the open/configure/close into a `for` loop
+so the `{}` block provides the nesting (abridged from `clay.h`):
+
+```c
+#define CLAY(id, ...)                                            \
+    for (                                                        \
+        CLAY__ELEMENT_DEFINITION_LATCH =                         \
+            (Clay__OpenElementWithId(id),                        \
+             Clay__ConfigureOpenElement(                         \
+                 (Clay_ElementDeclaration){ __VA_ARGS__ }), 0);  \
+        CLAY__ELEMENT_DEFINITION_LATCH < 1;                      \
+        CLAY__ELEMENT_DEFINITION_LATCH = 1, Clay__CloseElement() \
+    )
+```
+
+Used like this — declarative, nested, block-scoped:
+
+```c
+CLAY("Header", {
+    .layout = { .sizing = { .width = CLAY_SIZING_GROW(), .height = CLAY_SIZING_GROW() } },
+    .backgroundColor = { 34, 34, 34, 255 }
+}) {
+    CLAY("Title", { .layout = { .padding = { .top = 8, .bottom = 8 } } }) {
+        CLAY_TEXT("Hello, Clay!");
+    }
+}
+```
+
+Better — but it's a macro: it can't be named or reused, the configuration is
+stuck in designated-initializer syntax, and it only exists because C has no
+block-scoped construction.
+
+### The `scoped` version
+
+```odin
+Layout :: scoped { element_open, element_close }
+
+clay_begin_layout()
+
+Layout(header_id, grow, {34, 34, 34, 255}) {
+	Layout(title_id, padding(8)) {
+		Text("Hello, Clay!")
+	}
+}
+
+commands := clay_end_layout(delta_time)
+```
+
+`element_open(id, config)` maps to `open_element_with_id` +
+`configure_open_element`; `element_close` to `close_element`. The block is the
+real scope — no macro, no `for`-loop trick, and the pairing is guaranteed by
+the language. The configuration arrives as constructor args, so a named,
+parameterised element is just `Layout(header_id, ...)`. (The frame's
+begin/end stay as plain calls here because `clay_end_layout` returns the
+render commands — the scoped pair bounds the *element* nesting, which is
+where the pairing bugs live.)
+
+This is the same idea Clay's macro reaches for — `scoped` is its
+language-level form, and it composes (LIFO), gates (Begin-can-fail), and
+reuses (a named resource) where the macro cannot.
+
 ## Why these aren't just macros or wrappers
 
 Each example is pure sugar over the pair it names — `Window("Debug")` is
