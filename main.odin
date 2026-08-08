@@ -26,6 +26,10 @@ SimpleToken :: enum {
 	RSquirly,
 	Comma,
 	Equals,
+	Plus,
+	Minus,
+	Star,
+	Slash,
 	Hat,
 	NewLine,
 	EOF,
@@ -76,6 +80,12 @@ lex :: proc(lexer: ^Lexer, allocator := context.allocator) -> (tokens: [dynamic]
 			case '{':  append(&result, lex_single(lexer, .LSquirly))
 			case '}':  append(&result, lex_single(lexer, .RSquirly))
 			case ',':  append(&result, lex_single(lexer, .Comma))
+			case '=':  append(&result, lex_single(lexer, .Equals))
+			case '+':  append(&result, lex_single(lexer, .Plus))
+			case '-':  append(&result, lex_single(lexer, .Minus))
+			case '*':  append(&result, lex_single(lexer, .Star))
+			case '/':  append(&result, lex_single(lexer, .Slash)) // Look into comments here too
+			case '^':  append(&result, lex_single(lexer, .Hat))
 			case '\n': append(&result, lex_single(lexer, .NewLine))
 			case 'a'..='z' :
 				token, _ := lex_identifier(lexer)

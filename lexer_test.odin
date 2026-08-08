@@ -166,6 +166,66 @@ test_lex :: proc(t: ^testing.T) {
 			},
 		},
 		{
+			src = "=",
+			expected = []Token{
+				Token{offset = 0, value = SimpleToken.Equals},
+				Token{offset = 1, value = SimpleToken.EOF},
+			},
+		},
+		{
+			src = "+=",
+			expected = []Token{
+				Token{offset = 0, value = SimpleToken.Plus},
+				Token{offset = 1, value = SimpleToken.Equals},
+				Token{offset = 2, value = SimpleToken.EOF},
+			},
+		},
+		{
+			src = "a-b",
+			expected = []Token{
+				Token{offset = 0, value = Identifier("a")},
+				Token{offset = 1, value = SimpleToken.Minus},
+				Token{offset = 2, value = Identifier("b")},
+				Token{offset = 3, value = SimpleToken.EOF},
+			},
+		},
+		{
+			src = "a*b",
+			expected = []Token{
+				Token{offset = 0, value = Identifier("a")},
+				Token{offset = 1, value = SimpleToken.Star},
+				Token{offset = 2, value = Identifier("b")},
+				Token{offset = 3, value = SimpleToken.EOF},
+			},
+		},
+		{
+			src = "a/b",
+			expected = []Token{
+				Token{offset = 0, value = Identifier("a")},
+				Token{offset = 1, value = SimpleToken.Slash},
+				Token{offset = 2, value = Identifier("b")},
+				Token{offset = 3, value = SimpleToken.EOF},
+			},
+		},
+		{
+			src = "a^b",
+			expected = []Token{
+				Token{offset = 0, value = Identifier("a")},
+				Token{offset = 1, value = SimpleToken.Hat},
+				Token{offset = 2, value = Identifier("b")},
+				Token{offset = 3, value = SimpleToken.EOF},
+			},
+		},
+		{
+			src = "x = 5",
+			expected = []Token{
+				Token{offset = 0, value = Identifier("x")},
+				Token{offset = 2, value = SimpleToken.Equals},
+				Token{offset = 4, value = Number("5")},
+				Token{offset = 5, value = SimpleToken.EOF},
+			},
+		},
+		{
 			src = "a$b",
 			expected = []Token{
 				Token{offset = 0, value = Identifier("a")},
