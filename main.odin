@@ -36,8 +36,7 @@ Lexer :: struct {
 SimpleProgram :: `
 main :: () {
 	print("Hellope")
-}
-`
+}`
 
 main :: proc() {
 	lexer := make_lexer(SimpleProgram)
@@ -66,27 +65,26 @@ lex :: proc(lexer: ^Lexer, allocator := context.allocator) -> [dynamic]Token {
 		switch lexer.source[lexer.position] {
 			case ':':
 				append(&result, Token { offset = lexer.position, value = .Colon})
-				lexer.position += 1
+				advance(lexer)
 			case '(':
 				append(&result, Token { offset = lexer.position, value = .LParen})
-				lexer.position += 1
+				advance(lexer)
 			case ')':
 				append(&result, Token { offset = lexer.position, value = .RParen})
-				lexer.position += 1
+				advance(lexer)
 			case '{':
 				append(&result, Token { offset = lexer.position, value = .LSquirly})
-				lexer.position += 1
+				advance(lexer)
 			case '}':
 				append(&result, Token { offset = lexer.position, value = .RSquirly})
-				lexer.position += 1
+				advance(lexer)
 			case '\n':
 				append(&result, Token { offset = lexer.position, value = .NewLine})
-				lexer.position += 1
-			case 'a'..='z':
+				advance(lexer)
+			case 'a'..='z' :
 				append(&result, lex_identifier(lexer))
 			case '"' :
 				append(&result, lex_string(lexer))
-				lexer.position += 1
 			case:
 				fmt.eprintfln("UNRECOGNISED: %v", lexer)
 				break lexing
@@ -98,27 +96,68 @@ lex :: proc(lexer: ^Lexer, allocator := context.allocator) -> [dynamic]Token {
 	return result
 }
 
+peek :: proc(lexer: ^Lexer) -> u8 {
+	if lexer.position >= len(lexer.source) do return 0
+	return lexer.source[lexer.position]
+}
+
+advance :: proc(lexer: ^ Lexer) -> u8 {
+	if lexer.position >= len(lexer.source) do return 0
+	ch := lexer.source[lexer.position]
+	lexer.position += 1
+	return ch
+}
+
 lex_identifier :: proc(lexer: ^Lexer) -> Token {
 	start := lexer.position
-	for lexer.position < len(lexer.source) && lexer.source[lexer.position] >= 'a' && lexer.source[lexer.position] <= 'z' {
-		lexer.position += 1
+	for peek(lexer) >= 'a' && peek(lexer) <= 'z' {
+		advance(lexer)
 	}
 	return Token {offset = start, value = Identifier(lexer.source[start:lexer.position]) }
 }
 
 lex_string :: proc(lexer: ^Lexer) -> Token {
-	lexer.position += 1
+	token_start := lexer.position
+	advance(lexer)               // opening quote
 	start := lexer.position
-	for lexer.position < len(lexer.source) && lexer.source[lexer.position] != '"' {
-		lexer.position += 1
+
+	for peek(lexer) != 0 && peek(lexer) != '"' {
+		if peek(lexer) == '\\' {
+			advance(lexer)       // the backslash
+			if peek(lexer) != 0 {
+				advance(lexer)   // the escaped character
+			}
+		} else {
+			advance(lexer)
+		}
 	}
-	return Token {offset = start, value = StringLiteral(lexer.source[start:lexer.position]) }
+	end := lexer.position         // at the closing quote, or end of input
+
+	advance(lexer)                // consume the closing quote (no-op at EOF)
+
+	return Token { offset = token_start, value = StringLiteral(lexer.source[start:end]) }
 }
 
 eat_whitespace :: proc(lexer: ^Lexer) {
-	for lexer.position < len(lexer.source) && is_whitespace(lexer.source[lexer.position]) {
-		lexer.position += 1
+	for is_whitespace(peek(lexer)) {
+		advance(lexer)
 	}
+}
+
+is_lowercase :: proc(char: u8) -> bool {
+	return (char >= 'a' && char <= 'z')
+}
+
+is_uppercase :: proc(char: u8) -> bool {
+	return (char >= 'A' && char <= 'Z')
+}
+
+is_digit :: proc(char: u8) -> bool {
+	return (char >= '0' && char <= '9')
+}
+
+is_alpha :: proc(char: u8) -> bool {
+	return is_lowercase(char) || is_uppercase(char) 
 }
 
 is_whitespace :: proc(char: u8) -> bool {

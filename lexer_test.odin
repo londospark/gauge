@@ -73,8 +73,37 @@ test_lex :: proc(t: ^testing.T) {
 		{
 			src = "\"abc",
 			expected = []Token{
-				Token{offset = 1, value = StringLiteral("abc")},
+				Token{offset = 0, value = StringLiteral("abc")},
 				Token{offset = 4, value = SimpleToken.EOF},
+			},
+		},
+		{
+			src = "\"abc\"",
+			expected = []Token{
+				Token{offset = 0, value = StringLiteral("abc")},
+				Token{offset = 5, value = SimpleToken.EOF},
+			},
+		},
+		{
+			src = "\"a\\\"b\"",
+			expected = []Token{
+				Token{offset = 0, value = StringLiteral("a\\\"b")},
+				Token{offset = 6, value = SimpleToken.EOF},
+			},
+		},
+		{
+			src = "\"a\\\\b\"",
+			expected = []Token{
+				Token{offset = 0, value = StringLiteral("a\\\\b")},
+				Token{offset = 6, value = SimpleToken.EOF},
+			},
+		},
+		{
+			src = "\"abc\"xyz",
+			expected = []Token{
+				Token{offset = 0, value = StringLiteral("abc")},
+				Token{offset = 5, value = Identifier("xyz")},
+				Token{offset = 8, value = SimpleToken.EOF},
 			},
 		},
 		{
@@ -90,12 +119,11 @@ test_lex :: proc(t: ^testing.T) {
 				Token{offset = 13, value = SimpleToken.NewLine},
 				Token{offset = 15, value = Identifier("print")},
 				Token{offset = 20, value = SimpleToken.LParen},
-				Token{offset = 22, value = StringLiteral("Hellope")},
+				Token{offset = 21, value = StringLiteral("Hellope")},
 				Token{offset = 30, value = SimpleToken.RParen},
 				Token{offset = 31, value = SimpleToken.NewLine},
 				Token{offset = 32, value = SimpleToken.RSquirly},
-				Token{offset = 33, value = SimpleToken.NewLine},
-				Token{offset = 34, value = SimpleToken.EOF},
+				Token{offset = 33, value = SimpleToken.EOF},
 			},
 		},
 	}
