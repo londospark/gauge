@@ -32,6 +32,11 @@
 			"cmd": ["devenv", "shell", "--quiet", "odin", "build", ".", "-debug"],
 		},
 		{
+			"name": "Odin: Debug (gdb)",
+			"working_dir": "${project_path}",
+			"cmd": ["bash", "-c", "devenv shell --quiet odin build . -debug && ghostty -e devenv shell --quiet gdb ./londolang"],
+		},
+		{
 			"name": "Odin: Test",
 			"working_dir": "${project_path}",
 			"cmd": ["devenv", "shell", "--quiet", "odin", "test", "."],
