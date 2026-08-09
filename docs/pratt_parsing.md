@@ -60,23 +60,26 @@ Why is `+` `(10, 11)` and not `(10, 10)`? Trace `10 - 3 - 2`:
 The `11` is a **tripwire**: right = left + 1 locks a same-strength operator out
 of the right side, so same-strength operators stack to the left.
 
-Right-associativity is just **not** setting the tripwire: `=` is `(1, 1)`.
-Trace `a = b = c`:
+Right-associativity is the opposite inequality: left strength **greater than**
+right strength, `=` as `(2, 1)`. Trace `a = b = c`:
 
-- Parse `a`. Meet `=` (1,1). Take it, parse the right side with **1** in the
+- Parse `a`. Meet `=` (2,1). Take it, parse the right side with **1** in the
   pocket.
-- Parse `b`. Meet `=` (1,1). Is 1 < 1? No — take it. Parse its right side ->
-  `c`.
+- Parse `b`. Meet `=` (2,1). Its left-strength 2 < pocket 1? No — take it.
+  Parse its right side -> `c`.
 - Result: `a = (b = c)`. Right-associative.
 
 The pair is both precedence *and* associativity: **left** sets the floor for
 what may sit to its left, **right** sets the floor for the right operand, and
-`right = left + 1` vs `right = left` flips the direction.
+the *inequality* between them flips the direction — `left < right` is
+left-associative, `left > right` is right-associative. No operator needs
+`left == right`; a deliberate inequality makes the direction readable at a
+glance.
 
 ## londolang's table
 
 ```
-Equals     ( 1, 1 )   right   answer = 40 + 2    -> Assign(answer, 40 + 2)
+Equals     ( 2, 1 )   right   answer = 40 + 2    -> Assign(answer, 40 + 2)
 Plus/Minus (10, 11)   left    2 + 3 + 4          -> (2 + 3) + 4
 Star/Slash (20, 21)   left    2 * 3 * 4          -> (2 * 3) * 4
 LParen     (30, 30)   call    print(answer)      -> Call(print, [answer])
@@ -84,12 +87,15 @@ LParen     (30, 30)   call    print(answer)      -> Call(print, [answer])
 
 Two consequences of these numbers:
 
-- `=` being weakest (1,1) is what makes assignments work: `answer = 40 + 2` —
+- `=` being weak (2,1) is what makes assignments work: `answer = 40 + 2` —
   the `=` recurses to the right with minimum 1, and both `+` (10) and `*` (20)
   clear that floor, so the *entire rest* becomes the value. `parse_infix` on
   `=` builds `Assign`; `+ - * /` build `Binary`.
 - `(` at (30,30) is how calls work as *infix*: the prefix parses `print`, the
-  loop sees `(`, takes it, parses the argument list (`parse_args`).
+  loop sees `(`, takes it, parses the argument list (`parse_args`). It is the
+  one equal-powers row — but calls are bracket-delimited, so the associativity
+  question never arises: the closing `)` always ends the argument list, and
+  chained calls like `f(x)(y)` assemble left.
 
 ## The code shape
 

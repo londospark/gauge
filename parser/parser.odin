@@ -177,7 +177,8 @@ Binding_Power :: struct {
 	right: int,
 }
 
-// Precedence table: Equals (1,1) right; Plus/Minus (10,11); Star/Slash (20,21); LParen (30,30).
+// Precedence table: Equals (2,1) right; Plus/Minus (10,11); Star/Slash (20,21); LParen (30,30).
+// Left-assoc: left < right. Right-assoc: left > right. See docs/pratt_parsing.md.
 binding_power :: proc(token: tok.Token) -> (Binding_Power, bool) {
 	panic("todo: binding_power")
 }
