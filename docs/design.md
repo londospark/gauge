@@ -48,6 +48,7 @@ Consistency and familiarity sometimes pull against each other. Pure consistency 
 
 - **Everything is an expression** — no statements. What you'd call a statement is an expression returning unit. One grammar concept.
 - **`::` name-first declarations** — the Wirth/Odin way: `x :: 5`, `main :: proc() {}`.
+- **Keywords are hard, by default.** `proc` is a `Keyword` union member (not an identifier), and every future keyword (`scoped`, `defer`) is added the same way: reserved where it lexes rather than context-dependent. Revisit only if it causes pain — making a word non-reserved is a breaking change to any program that used it as a name, so the default is the safe one.
 - **Constants may reference forward.** `GiB :: 1024 * TiB` is legal with `TiB` declared later — no forward declaration, no ordering ceremony. This is free: the parser never resolves names (an `Ident` is order-agnostic), so the rule only constrains the constant-folding pass to not assume source order. The one cost: a cyclic chain (`A :: B; B :: A`) is a source error diagnosed at fold time, never a hang or a panic.
 - **Newline = pure separator.** Newlines separate expressions and carry no value semantics. A block's value is its last expression; to "return nothing", end with a unit expression.
 - **Blocks are values and scopes.** `{ ... }` composes like any expression and is a scope; scoped defers will ride on blocks.

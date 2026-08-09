@@ -166,6 +166,25 @@ expect_simple :: proc(p: ^Parser, kind: tok.SimpleToken) -> (token: tok.Token, o
 	return token, false
 }
 
+match_keyword :: proc(p: ^Parser, kind: tok.Keyword) -> bool {
+	if keyword, ok := current(p).value.(tok.Keyword); ok && keyword == kind {
+		advance(p)
+		return true
+	}
+	return false
+}
+
+expect_keyword :: proc(p: ^Parser, kind: tok.Keyword) -> (token: tok.Token, ok: bool) {
+	token = current(p)
+	keyword, is_keyword := token.value.(tok.Keyword)
+	if is_keyword && keyword == kind {
+		advance(p)
+		return token, true
+	}
+	p.err = fmt.tprintf("Expected %v at byte %d, got %v", kind, token.offset, token.value)
+	return token, false
+}
+
 expect_identifier :: proc(p: ^Parser) -> (ident: tok.Identifier, offset: int, ok: bool) {
 	token := current(p)
 	if name, is_ident := token.value.(tok.Identifier); is_ident {
@@ -239,6 +258,19 @@ parse_prefix :: proc(p: ^Parser, allocator := context.allocator) -> (expr: ^Expr
 		advance(p)
 		return new_string(v, token.offset, allocator), true
 
+	case tok.SimpleToken:
+		if v == .LParen {
+			// @Note: advance rather than expect_simple — the if guard
+			//        already confirmed the token, so nothing to expect.
+			// @Review: resolved — advance is provably equivalent given
+			//          the guard; keep it.
+			advance(p)
+			expr := parse_expression(p, 0, allocator) or_return
+			expect_simple(p, .RParen) or_return
+			return expr, true
+		}
+		p.err = fmt.tprintf("Expected an expression at byte %d, got %v", token.offset, token.value)
+
 	case:
 		p.err = fmt.tprintf("Expected an expression at byte %d, got %v", token.offset, token.value)
 	}
@@ -265,7 +297,7 @@ parse_decl :: proc(p: ^Parser, allocator := context.allocator) -> (decl: ^Expr, 
 	expect_simple(p, .Colon) or_return
 	expect_simple(p, .Colon) or_return
 
-	if match_simple(p, .LParen) do panic("todo: Procedures/bracketed consts not implemented yet")
+	if match_keyword(p, .Proc) do panic("todo: Procedures not implemented yet")
 
 	value := parse_expression(p, 0, allocator) or_return
 

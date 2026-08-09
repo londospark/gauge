@@ -294,6 +294,40 @@ test_lex_operators :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_lex_keywords :: proc(t: ^testing.T) {
+	cases := []TestCase{
+		{
+			src = "proc",
+			expected = []tok.Token{
+				tok.Token{offset = 0, value = tok.Keyword.Proc},
+				tok.Token{offset = 4, value = tok.SimpleToken.EOF},
+			},
+		},
+		{
+			// "procedure" is not the keyword — the match must be exact,
+			// not a prefix match.
+			src = "procedure",
+			expected = []tok.Token{
+				tok.Token{offset = 0, value = tok.Identifier("procedure")},
+				tok.Token{offset = 9, value = tok.SimpleToken.EOF},
+			},
+		},
+		{
+			src = "x proc",
+			expected = []tok.Token{
+				tok.Token{offset = 0, value = tok.Identifier("x")},
+				tok.Token{offset = 2, value = tok.Keyword.Proc},
+				tok.Token{offset = 6, value = tok.SimpleToken.EOF},
+			},
+		},
+	}
+
+	for tc, i in cases {
+		check_case(t, tc, i)
+	}
+}
+
+@(test)
 test_lex_errors :: proc(t: ^testing.T) {
 	cases := []TestCase{
 		{
