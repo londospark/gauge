@@ -6,14 +6,14 @@ Guidance for AI agents and contributors working on londolang.
 
 All tools live in the project's devenv shell — there is nothing installed ad-hoc:
 
-- Tests: `devenv shell --quiet odin test lexer/ parser/`
+- Tests: `devenv shell --quiet odin test lexer/` and `devenv shell --quiet odin test parser/` (one package per invocation — `odin test` takes a single directory)
 - Run the demo: `devenv shell --quiet odin run .`
 - Build: `devenv shell --quiet odin build .`
 - Debug build: `devenv shell --quiet odin build . -debug`, then `devenv shell --quiet gf2 ./londolang`
 
 ## Workflow
 
-- **Run the tests before every commit and push.** `devenv shell --quiet odin test lexer/ parser/` must pass; suites live next to their packages (`lexer/lexer_test.odin`, `parser/parser_test.odin`).
+- **Run the tests before every commit and push.** `devenv shell --quiet odin test lexer/` and `devenv shell --quiet odin test parser/` must pass; suites live next to their packages (`lexer/lexer_test.odin`, `parser/parser_test.odin`).
 - **Scan for `@Note` before every commit.** Grep the code for `@Note` and review each one — confirm it's a deliberate design decision or flag it for action. Once a note is reviewed, mark it with a `// @Review:` resolution line so it's visibly settled; reviewed notes don't need re-reviewing on future commits.
 - When lexer behaviour changes, update the expected tokens in `lexer/lexer_test.odin` — offsets included.
 - Keep the Sublime build systems (`londolang.sublime-project`) and `.project.gf` in sync with any command or debugger changes.
@@ -42,7 +42,7 @@ Match the project's hand-aligned style:
 
 - **Tabs** for indentation, one level per nest.
 - `::` for all declarations (constants, types, procedures).
-- Align the **types** in consecutive field declarations and the `::` in consecutive type/constant declarations within a block:
+- Align the **types** in successive field declarations and the `::` in successive type/constant declarations. Alignment applies only within a run of consecutive lines — a break (a blank line, a comment, or a scope end like `}`) ends the run, and what follows may use its own indentation:
 
   ```odin
   Identifier    :: distinct string
@@ -54,6 +54,19 @@ Match the project's hand-aligned style:
   Lexer :: struct {
   	source:   string,
   	position: int,
+  }
+  ```
+
+  ```odin
+  Binary :: struct {
+  	using node: Node,
+  	lhs:        ^Expr,
+  	rhs:        ^Expr,
+  	operator:   BinaryOperator,
+  }
+
+  Node :: struct {
+  	offset: int
   }
   ```
 

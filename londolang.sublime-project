@@ -39,7 +39,7 @@
 		{
 			"name": "Odin: Test",
 			"working_dir": "${project_path}",
-			"cmd": ["devenv", "shell", "--quiet", "odin", "test", "lexer/", "parser/"],
+			"cmd": ["bash", "-c", "devenv shell --quiet odin test lexer/ && devenv shell --quiet odin test parser/"],
 		},
 	],
 }

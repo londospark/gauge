@@ -4,3 +4,4 @@ result
 *.sublime-workspace
 /londolang
 *.o
+*.bin
