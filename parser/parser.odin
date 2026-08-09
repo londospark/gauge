@@ -3,9 +3,12 @@ package parser
 import "core:fmt"
 import "../lexer"
 
+// The error message lives on the Parser so parse functions can return
+// (T, bool) and use `or_return`; `parse` surfaces it as its third return.
 Parser :: struct {
 	tokens:   []lexer.Token,
 	position: int,
+	err:      string,
 }
 
 // --- AST ---
@@ -152,13 +155,25 @@ match_simple :: proc(p: ^Parser, kind: lexer.SimpleToken) -> bool {
 	return false
 }
 
-expect_simple :: proc(p: ^Parser, kind: lexer.SimpleToken) -> (lexer.Token, bool, string) {
-	token := current(p)
-	if simple, ok := token.value.(lexer.SimpleToken); ok && simple == kind {
+expect_simple :: proc(p: ^Parser, kind: lexer.SimpleToken) -> (token: lexer.Token, ok: bool) {
+	token = current(p)
+	simple, is_simple := token.value.(lexer.SimpleToken)
+	if is_simple && simple == kind {
 		advance(p)
-		return token, true, ""
+		return token, true
 	}
-	return token, false, fmt.tprintf("expected %v at byte %d, got %v", kind, token.offset, token.value)
+	p.err = fmt.tprintf("expected %v at byte %d, got %v", kind, token.offset, token.value)
+	return token, false
+}
+
+expect_identifier :: proc(p: ^Parser) -> (token: lexer.Token, ok: bool) {
+	token = current(p)
+	if _, is_ident := token.value.(lexer.Identifier); is_ident {
+		advance(p)
+		return token, true
+	}
+	p.err = fmt.tprintf("expected Identifier at byte %d, got %v", token.offset, token.value)
+	return token, false
 }
 
 // --- Pratt (expressions) ---
@@ -183,57 +198,59 @@ to_binary_operator :: proc(simple: lexer.SimpleToken) -> BinaryOperator {
 	return .Add
 }
 
-parse_expression :: proc(p: ^Parser, min_bp: int, allocator := context.allocator) -> (^Expr, bool, string) {
+parse_expression :: proc(p: ^Parser, min_bp: int, allocator := context.allocator) -> (expr: ^Expr, ok: bool) {
 	panic("todo: parse_expression")
 }
 
-parse_prefix :: proc(p: ^Parser, allocator := context.allocator) -> (^Expr, bool, string) {
+parse_prefix :: proc(p: ^Parser, allocator := context.allocator) -> (expr: ^Expr, ok: bool) {
 	panic("todo: parse_prefix")
 }
 
-parse_infix :: proc(p: ^Parser, operator: lexer.Token, left: ^Expr, right: ^Expr, allocator := context.allocator) -> (^Expr, bool, string) {
+parse_infix :: proc(p: ^Parser, operator: lexer.Token, left: ^Expr, right: ^Expr, allocator := context.allocator) -> (expr: ^Expr, ok: bool) {
 	panic("todo: parse_infix")
 }
 
-parse_args :: proc(p: ^Parser, allocator := context.allocator) -> ([dynamic]^Expr, bool, string) {
+parse_args :: proc(p: ^Parser, allocator := context.allocator) -> (args: [dynamic]^Expr, ok: bool) {
 	panic("todo: parse_args")
 }
 
 // --- blocks, declarations, program ---
 
-parse_block :: proc(p: ^Parser, allocator := context.allocator) -> (^Expr, bool, string) {
+parse_block :: proc(p: ^Parser, allocator := context.allocator) -> (expr: ^Expr, ok: bool) {
 	panic("todo: parse_block")
 }
 
-parse_decl :: proc(p: ^Parser, allocator := context.allocator) -> (^Expr, bool, string) {
+parse_decl :: proc(p: ^Parser, allocator := context.allocator) -> (decl: ^Expr, ok: bool) {
 	// All decls at the moment are IDENT, COLON, COLON, Something that we need to work out
+	expect_identifier(p) or_return
+	expect_simple(p, .Colon) or_return
+	expect_simple(p, .Colon) or_return
 
-	panic("todo: parse_decl")
+	// @Note We could parse either a proc or a constant here.
+	//       We're not going to permit unit here though - why would you ever want that?
+
+	return nil, true
 }
 
-parse_program :: proc(p: ^Parser, allocator := context.allocator) -> (^Program, bool, string) {
-	program := new(Program, allocator)
+parse_program :: proc(p: ^Parser, allocator := context.allocator) -> (program: ^Program, ok: bool) {
+	program = new(Program, allocator)
 	program.decls = make([dynamic]^Expr, allocator)
 
 	skip_newlines(p)
 	for !is_eof(p) {
-		decl, ok, err := parse_decl(p, allocator)
-
-		if !ok {
-			return program, ok, err
-		}
-
+		decl := parse_decl(p, allocator) or_return
 		append(&program.decls, decl)
 		skip_newlines(p)
 	}
-	_, ok, err := expect_simple(p, .EOF)
+	expect_simple(p, .EOF) or_return
 
-	return program, ok, err
+	return program, true
 }
 
 parse :: proc(tokens: []lexer.Token, allocator := context.allocator) -> (program: ^Program, ok: bool, err: string) {
 	p := Parser { tokens = tokens }
-	return parse_program(&p, allocator)
+	program, ok = parse_program(&p, allocator)
+	return program, ok, p.err
 }
 
 // --- node construction ---
