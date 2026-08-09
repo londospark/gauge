@@ -1,7 +1,8 @@
 # Scoping: `scoped` resources and `defer`
 
-How resource lifetimes work in londolang. This is a design document, not an
-implementation — the syntax here is the proposal, not yet built.
+How resource lifetimes work in londolang — and why they're the language's
+reason to exist. The syntax here is the proposal; the model is the point, and
+it's a commitment, not a convenience. Nothing here is implemented yet.
 
 ## Blocks are scopes, so defer composes
 
@@ -449,11 +450,15 @@ stepping stone — not a trap.
 
 ### Verdict
 
-`scoped` is a proposal, not a commitment. It's cheap once `defer` exists, it
-is a genuine ergonomic improvement with clear escape hatches, and it gives the
-pattern to a language that currently has no metaprogramming to build it with.
-It should be built after `defer`, dogfooded on real code, and kept only if it
-earns its keep — and reconsidered if and when metaprogramming arrives.
+`scoped` is the reason londolang exists — a commitment, not a proposal. It is
+the answer to "why build a language at all": a systems language where resource
+lifetimes and immediate-mode UIs are native grammar, not `defer` pairs and
+macros. The risks above don't argue against it; they argue for building it
+*well* — on top of a proven `defer`, with the escape hatches and honest
+failure semantics, and dogfooded on real code. If metaprogramming ever
+arrives, `scoped` may become a library built on it — the feature survives
+either way, because the *model* (declarative, block-scoped lifetimes) is the
+differentiator, not the keyword's spelling.
 
 ## Open questions / future work
 

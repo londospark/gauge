@@ -8,6 +8,30 @@ The north star for londolang, and the principles that keep it coherent.
 
 A language you can hold in your head: one way to say each thing, no surprises, and the common thing you want to write is the short thing to write. Wirth's philosophy, applied to a systems language.
 
+## Why londolang exists
+
+A language with only nicer syntax isn't a reason to exist. londolang's reason
+to exist is the **declarative, scope-based resource model** — anything with a
+begin/end lifecycle (a file, a window, a layout element, a frame) is a
+first-class scoped block, and the same scope model powers immediate-mode UI
+ergonomics. That is the feature the language is built around; everything else
+serves it.
+
+This is what separates it from:
+
+- **Odin / C / Zig / Go** — `defer` is manual and general; nothing makes the
+  open/close *pairing* a language feature.
+- **C++ / Rust** — RAII and ownership are type-driven and automatic; londolang's
+  is block-driven and explicit.
+- **C# `using` / Python `with`** — library patterns tied to an interface
+  (`IDisposable`) or a decorator; londolang's is a named, interface-free
+  language construct.
+
+Without the scoped model, londolang is Odin with different punctuation. With
+it, resource management and immediate-mode UIs become native grammar instead of
+hand-rolled `defer` pairs and macros. See [scoping.md](scoping.md) for the
+full design.
+
 ## Principles
 
 1. **Least surprise beats cleverness.** If `=`, `+`, `()`, `{}` already mean something in C/Odin/Rust, keep those meanings. Familiarity is a feature — it's how people *guess* your syntax correctly on the first try.
@@ -26,6 +50,7 @@ Consistency and familiarity sometimes pull against each other. Pure consistency 
 - **`::` name-first declarations** — the Wirth/Odin way: `x :: 5`, `main :: proc() {}`.
 - **Newline = pure separator.** Newlines separate expressions and carry no value semantics. A block's value is its last expression; to "return nothing", end with a unit expression.
 - **Blocks are values and scopes.** `{ ... }` composes like any expression and is a scope; scoped defers will ride on blocks.
+- **`scoped` resources are core.** The declarative, block-scoped resource model — `File :: scoped { file_open, file_close }`, `File("data.txt") { ... }` — is the language's reason to exist, not a convenience. See [scoping.md](scoping.md).
 - **`()` is unit.**
 - **Byte offsets everywhere.** Positions are byte offsets, never line/col — one position model through the whole toolchain.
 - **No preprocessor.** `when`/constants take its place, the way the Pascal/Modula/Oberon line (and Odin) avoid one.
@@ -34,7 +59,7 @@ Consistency and familiarity sometimes pull against each other. Pure consistency 
 
 - **Discard sugar** — how to explicitly drop a value; decision pending (Rust uses `;`, we may want a different spelling).
 - **Comptime.** Odin has no general comptime (`#run` does not exist); it offers `when`, `#assert`, and constant evaluation. For londolang, compile-time-ish work happens via a *pre-compile program* — an external tool importing the exported `lexer`/`parser` packages. A real comptime system would mean writing an interpreter for the language, which is a later-phase decision.
-- Types (`x: int`), multi-char operators, `if`/`while`/`return` as expressions, typed params, structs/unions/enums, `^` pointer syntax, scoped defer — see [scoping.md](scoping.md) for the `scoped` resource proposal — and multi-line expressions.
+- Types (`x: int`), multi-char operators, `if`/`while`/`return` as expressions, typed params, structs/unions/enums, `^` pointer syntax, and multi-line expressions.
 
 ## Lineage
 
