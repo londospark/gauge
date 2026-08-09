@@ -97,6 +97,26 @@ Two consequences of these numbers:
   question never arises: the closing `)` always ends the argument list, and
   chained calls like `f(x)(y)` assemble left.
 
+## The prefix role of `(`: grouping
+
+The table row above is the *infix* role (calls). `(` also has a *prefix* role,
+handled in `parse_prefix`, entirely outside the binding-power table:
+
+- `(4 + 2) * 5` — parse_prefix consumes `(`, parses the inner expression at
+  power 0, expects `)`, and returns the group as an atomic left operand. The
+  loop then meets `*` and builds `Binary(Multiply, (4 + 2), 5)`. No binding
+  power is involved — a group is one indivisible thing.
+- Position decides the role, so there is no ambiguity: at the *start* of an
+  expression, `(` is always grouping; *after* an expression, `(` is always a
+  call. `(4 + 2)` starts an expression — grouping. `print` then `(` — call.
+- `()` is a grouping of nothing — the `Unit` value. (The allow-unit decision is
+  deferred; this is where it lands when it's made.)
+- **Why this matters for declarations:** a bracketed constant like
+  `x :: (4 + 2) * 3` is a group followed by `* 3`. The `(` after `ident ::`
+  is the *grouping* role, not a procedure signature. That is exactly why the
+  proc/const dispatch cannot use "(` means proc" — it must checkpoint, try the
+  proc signature, and commit only when the `{` appears.
+
 ## The code shape
 
 ```odin
