@@ -1,5 +1,5 @@
 [executable]
-path=londolang
+path=gauge
 arguments=
 ask_directory=1
 

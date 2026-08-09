@@ -1,4 +1,4 @@
-# londolang
+# gauge
 
 A small programming language inspired by **Jai** and **Odin**, written in Odin itself.
 
@@ -91,10 +91,10 @@ nix run github:londospark/odin-nightly-flake -- version
 
 ```sh
 devenv shell --quiet odin build . -debug
-devenv shell --quiet gf2 ./londolang
+devenv shell --quiet gf2 ./gauge
 ```
 
-[gf2](https://github.com/nakst/gf) is the graphical GDB frontend (the one Tsoding uses). `.project.gf` configures it to load `londolang`, disable its gvim sync, and pause at `main` on launch. In Sublime Text, open `londolang.sublime-project` and hit **Ctrl+B** with **Odin: Debug (gf2)** selected.
+[gf2](https://github.com/nakst/gf) is the graphical GDB frontend (the one Tsoding uses). `.project.gf` configures it to load `gauge`, disable its gvim sync, and pause at `main` on launch. In Sublime Text, open `gauge.sublime-project` and hit **Ctrl+B** with **Odin: Debug (gf2)** selected.
 
 ## Mermaid diagrams on GitHub
 

@@ -1,6 +1,6 @@
 # Design
 
-The north star for londolang, and the principles that keep it coherent.
+The north star for gauge, and the principles that keep it coherent.
 
 ## North star
 
@@ -8,9 +8,9 @@ The north star for londolang, and the principles that keep it coherent.
 
 A language you can hold in your head: one way to say each thing, no surprises, and the common thing you want to write is the short thing to write. Wirth's philosophy, applied to a systems language.
 
-## Why londolang exists
+## Why gauge exists
 
-A language with only nicer syntax isn't a reason to exist. londolang's reason
+A language with only nicer syntax isn't a reason to exist. gauge's reason
 to exist is the **declarative, scope-based resource model** — anything with a
 begin/end lifecycle (a file, a window, a layout element, a frame) is a
 first-class scoped block, and the same scope model powers immediate-mode UI
@@ -21,13 +21,13 @@ This is what separates it from:
 
 - **Odin / C / Zig / Go** — `defer` is manual and general; nothing makes the
   open/close *pairing* a language feature.
-- **C++ / Rust** — RAII and ownership are type-driven and automatic; londolang's
+- **C++ / Rust** — RAII and ownership are type-driven and automatic; gauge's
   is block-driven and explicit.
 - **C# `using` / Python `with`** — library patterns tied to an interface
-  (`IDisposable`) or a decorator; londolang's is a named, interface-free
+  (`IDisposable`) or a decorator; gauge's is a named, interface-free
   language construct.
 
-Without the scoped model, londolang is Odin with different punctuation. With
+Without the scoped model, gauge is Odin with different punctuation. With
 it, resource management and immediate-mode UIs become native grammar instead of
 hand-rolled `defer` pairs and macros. See [scoping.md](scoping.md) for the
 full design.
@@ -58,12 +58,12 @@ Consistency and familiarity sometimes pull against each other. Pure consistency 
 ## Deferred / open
 
 - **Discard sugar** — how to explicitly drop a value; decision pending (Rust uses `;`, we may want a different spelling).
-- **Comptime.** Odin has no general comptime (`#run` does not exist); it offers `when`, `#assert`, and constant evaluation. For londolang, compile-time-ish work happens via a *pre-compile program* — an external tool importing the exported `lexer`/`parser` packages. A real comptime system would mean writing an interpreter for the language, which is a later-phase decision.
+- **Comptime.** Odin has no general comptime (`#run` does not exist); it offers `when`, `#assert`, and constant evaluation. For gauge, compile-time-ish work happens via a *pre-compile program* — an external tool importing the exported `lexer`/`parser` packages. A real comptime system would mean writing an interpreter for the language, which is a later-phase decision.
 - Types (`x: int`), multi-char operators, `if`/`while`/`return` as expressions, typed params, structs/unions/enums, `^` pointer syntax, and multi-line expressions.
 
 ## Lineage
 
-Odin describes itself as more derived from Pascal than from C, and the same lineage informs londolang:
+Odin describes itself as more derived from Pascal than from C, and the same lineage informs gauge:
 
 - **From the Wirth school** (Pascal → Modula-2 → Oberon): name-first declarations, strong distinct typing, no preprocessor, package-as-module, explicitness and simplicity.
 - **From C**: operators (`=`, `==`, `&`, `*`), braces, pointers, manual memory, low-level control, C ABI interop.

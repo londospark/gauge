@@ -1,4 +1,4 @@
-# londolang style guide — semantics
+# gauge style guide — semantics
 
 This is the *semantic* style guide: rules about what the code means, how
 failure is represented, and how design intent is signalled. It is not the

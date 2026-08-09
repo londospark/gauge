@@ -2,6 +2,6 @@ result
 .devenv
 .direnv
 *.sublime-workspace
-/londolang
+/gauge
 *.o
 *.bin

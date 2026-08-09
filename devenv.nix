@@ -17,7 +17,7 @@ in
 
   enterShell = ''
     echo ""
-    echo "LondoLang Devenv"
+    echo "Gauge Devenv"
     echo "  odin:  $(odin version | head -n1)"
     echo ""
   '';

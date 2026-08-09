@@ -1,6 +1,6 @@
 # Scoping: `scoped` resources and `defer`
 
-How resource lifetimes work in londolang — and why they're the language's
+How resource lifetimes work in gauge — and why they're the language's
 reason to exist. The syntax here is the proposal; the model is the point, and
 it's a commitment, not a convenience. Nothing here is implemented yet.
 
@@ -241,7 +241,7 @@ layout context on entry and pops it on exit, while the element tree lives in a
 contiguous arena (the stack-based tree). The macro exists only because C has no
 real block-scoped construction.
 
-In londolang that's just a scoped resource:
+In gauge that's just a scoped resource:
 
 ```odin
 Layout :: scoped { layout_begin, layout_end }
@@ -428,7 +428,7 @@ library patterns; no mainstream language made a dedicated keyword of it.
 
 **Answer.** The pattern is known and shipped — as a library pattern — and the
 reason it's not a keyword is that it's sugar over defer/RAII that most
-languages don't need to advertise. londolang's situation is different: it has
+languages don't need to advertise. gauge's situation is different: it has
 no metaprogramming, so a first-class `scoped` gives users the pattern without
 one. If metaprogramming arrives, `scoped` can become a library; the keyword is
 the interim form, not necessarily the final one.
@@ -439,18 +439,18 @@ Compile-time code generation (Jai-style `#code` blocks — code that produces
 code) could build the scoped pattern as a *library*, no keyword needed. Clay's
 macro is a text-level hack that metaprogramming replaces cleanly.
 
-**Answer.** This is the strongest critique. londolang has no metaprogramming,
+**Answer.** This is the strongest critique. gauge has no metaprogramming,
 and the honest options are: (a) build `scoped` as a keyword now, accepting it
 may be superseded by a library later, or (b) build metaprogramming first and
 make `scoped` a library. Metaprogramming is a far bigger investment than
-`defer`, and londolang is nowhere near it. So the sequence is: `defer` first,
+`defer`, and gauge is nowhere near it. So the sequence is: `defer` first,
 then decide whether `scoped` (keyword) or metaprogramming (library) is the
 right vehicle. The keyword buys the pattern today, cheaply, and is a natural
 stepping stone — not a trap.
 
 ### Verdict
 
-`scoped` is the reason londolang exists — a commitment, not a proposal. It is
+`scoped` is the reason gauge exists — a commitment, not a proposal. It is
 the answer to "why build a language at all": a systems language where resource
 lifetimes and immediate-mode UIs are native grammar, not `defer` pairs and
 macros. The risks above don't argue against it; they argue for building it

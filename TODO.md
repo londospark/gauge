@@ -14,7 +14,7 @@ The build roadmap. Design docs live in `docs/`; this tracks what gets built.
 - [ ] **`defer`** — block-scoped, LIFO, cleanup on every exit path. This is the
       machinery `scoped` rides on, and the most important piece of the
       language.
-- [ ] **`scoped` resources** — the reason londolang exists (see
+- [ ] **`scoped` resources** — the reason gauge exists (see
       `docs/scoping.md`): declarative, block-scoped resource pairs, with the
       failure gate and value-producing destructors. Built on top of `defer`.
 

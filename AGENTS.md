@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Guidance for AI agents and contributors working on londolang.
+Guidance for AI agents and contributors working on gauge.
 
 ## Commands
 
@@ -9,15 +9,20 @@ All tools live in the project's devenv shell — there is nothing installed ad-h
 - Tests: `devenv shell --quiet odin test lexer/` and `devenv shell --quiet odin test parser/` (one package per invocation — `odin test` takes a single directory)
 - Run the demo: `devenv shell --quiet odin run .`
 - Build: `devenv shell --quiet odin build .`
-- Debug build: `devenv shell --quiet odin build . -debug`, then `devenv shell --quiet gf2 ./londolang`
+- Debug build: `devenv shell --quiet odin build . -debug`, then `devenv shell --quiet gf2 ./gauge`
 
 ## Workflow
 
 - **Run the tests before every commit and push.** `devenv shell --quiet odin test lexer/` and `devenv shell --quiet odin test parser/` must pass; suites live next to their packages (`lexer/lexer_test.odin`, `parser/parser_test.odin`).
 - **Scan for `@Note` before every commit.** Grep the code for `@Note` and review each one — confirm it's a deliberate design decision or flag it for action. Once a note is reviewed, mark it with a `// @Review:` resolution line so it's visibly settled; reviewed notes don't need re-reviewing on future commits.
 - When lexer behaviour changes, update the expected tokens in `lexer/lexer_test.odin` — offsets included.
-- Keep the Sublime build systems (`londolang.sublime-project`) and `.project.gf` in sync with any command or debugger changes.
+- Keep the Sublime build systems (`gauge.sublime-project`) and `.project.gf` in sync with any command or debugger changes.
 - Comments explain **why**, never restate the code.
+
+## Voice
+
+- The name **gauge** is a railway term, and the docs lean into it: steam-train puns are **welcome and encouraged** throughout the documentation.
+- The maintainer is a member of the **Talyllyn Railway** (the world's first preserved narrow-gauge railway) — puns and references involving them are super, super welcome.
 
 ## Environment (the flake)
 

@@ -2,12 +2,12 @@
 
 This is a browse-along companion to [scoping.md](scoping.md). It takes real,
 canonical [Dear ImGui](https://github.com/ocornut/imgui) patterns and shows how
-they read in londolang's proposed `scoped` syntax. The language isn't built
+they read in gauge's proposed `scoped` syntax. The language isn't built
 yet — the lexer and AST exist; these are the target shape.
 
-## The cast: ImGui → londolang
+## The cast: ImGui → gauge
 
-| Dear ImGui (C++) | londolang (`scoped`) |
+| Dear ImGui (C++) | gauge (`scoped`) |
 |---|---|
 | `ImGui::NewFrame()` / `ImGui::Render()` | `Frame { ... }` |
 | `ImGui::Begin(name)` / `ImGui::End()` | `Window(name) { ... }` |
@@ -56,7 +56,7 @@ if (ImGui::Begin("My Window")) {
 }
 ```
 
-In londolang the scoped block *is* the gate — if the constructor returns
+In gauge the scoped block *is* the gate — if the constructor returns
 `false`, the body is skipped and no cleanup runs, so the `if` disappears:
 
 ```odin

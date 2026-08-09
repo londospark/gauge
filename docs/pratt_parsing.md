@@ -1,6 +1,6 @@
 # Pratt parsing and binding power
 
-A walkthrough of the expression parser londolang uses — precedence and
+A walkthrough of the expression parser gauge uses — precedence and
 associativity encoded in two small numbers per operator.
 
 ## The problem
@@ -76,7 +76,7 @@ left-associative, `left > right` is right-associative. No operator needs
 `left == right`; a deliberate inequality makes the direction readable at a
 glance.
 
-## londolang's table
+## gauge's table
 
 ```
 Equals     ( 2, 1 )   right   answer = 40 + 2    -> Assign(answer, 40 + 2)

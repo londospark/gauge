@@ -1,5 +1,5 @@
 {
-  description = "londolang — Odin development environment (devenv)";
+  description = "gauge — Odin development environment (devenv)";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
