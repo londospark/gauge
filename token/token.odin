@@ -10,6 +10,11 @@ Value :: union #no_nil {
 	Identifier,
 	Number,
 	StringLiteral,
+	Keyword,
+}
+
+Keyword :: enum {
+	Proc
 }
 
 Identifier    :: distinct string

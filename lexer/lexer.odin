@@ -44,7 +44,12 @@ lex :: proc(lexer: ^Lexer, allocator := context.allocator) -> (tokens: [dynamic]
 		case '^':  append(&result, lex_single(lexer, .Hat))
 		case '\n': append(&result, lex_single(lexer, .NewLine))
 		case 'a'..='z':
-			token, _ := lex_identifier(lexer)
+			position := lexer.position
+			token, is_keyword := lex_keyword(lexer)
+			if !is_keyword {
+				lexer.position = position
+				token, _ = lex_identifier(lexer)
+			}
 			append(&result, token)
 		case '0'..='9':
 			token, _ := lex_number(lexer)
@@ -101,6 +106,21 @@ lex_identifier :: proc(lexer: ^Lexer) -> (tok.Token, bool) {
 		advance(lexer)
 	}
 	return tok.Token { offset = start, value = tok.Identifier(lexer.source[start:lexer.position]) }, start != lexer.position
+}
+
+lex_keyword :: proc(lexer: ^Lexer) -> (tok.Token, bool) {
+	start := lexer.position
+	for {
+		c, ok := peek(lexer)
+		if !ok || !is_lowercase(c) do break
+		advance(lexer)
+	}
+
+	switch lexer.source[start:lexer.position] {
+		case "proc": 
+			return tok.Token { offset = start, value = .Proc }, true
+	}
+	return tok.Token{} , false
 }
 
 lex_string :: proc(lexer: ^Lexer) -> (tok.Token, bool) {

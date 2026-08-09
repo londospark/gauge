@@ -226,7 +226,7 @@ parse_expression :: proc(p: ^Parser, minimum_binding_power: int, allocator := co
 
 parse_prefix :: proc(p: ^Parser, allocator := context.allocator) -> (expr: ^Expr, ok: bool) {
 	token := current(p)
-	switch v in token.value {
+	#partial switch v in token.value {
 	case tok.Number:
 		advance(p)
 		return new_number(v, token.offset, allocator), true
@@ -239,7 +239,7 @@ parse_prefix :: proc(p: ^Parser, allocator := context.allocator) -> (expr: ^Expr
 		advance(p)
 		return new_string(v, token.offset, allocator), true
 
-	case tok.SimpleToken:
+	case:
 		p.err = fmt.tprintf("Expected an expression at byte %d, got %v", token.offset, token.value)
 	}
 
