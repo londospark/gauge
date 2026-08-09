@@ -343,6 +343,118 @@ the body, is a separate later option.)
   proof the pairing guarantee is wanted. `scoped` provides it natively,
   block-shaped, with no object machinery.
 
+## Risks and the devil's advocate
+
+An honest accounting of what could be wrong with `scoped`, each with our answer.
+This is written so the decision to build it (or not) is made with eyes open —
+the feature is a proposal, not a commitment.
+
+### R1 — It's sugar over defer, and sugar is the easy 10%
+
+The construct makes the *happy path* nice: constructor → body → destructor. The
+hard parts of resource management — partial construction, nested failures,
+resources that outlive a block, cleanup-vs-value ordering — are still there,
+just hidden behind a nicer spelling.
+
+**Answer.** True, and it's exactly why `scoped` is deferred until `defer`
+exists and is proven. It's a convenience built on a real mechanism, not a
+substitute for one. Its value is modest but real — pairing by construction and
+a shorter happy path — so it should be treated as a nice-to-have and
+dogfooded before it's trusted.
+
+### R2 — It's being designed before its foundations
+
+`defer` (with full exit-path lowering), blocks-as-values, and control flow
+don't exist yet. Designing the sugar before the base is premature.
+
+**Answer.** True. That's why this is a *design document*, not an
+implementation plan. `scoped` rides on `defer`; the plan is to build `defer`
+first (it's wanted in its own right), then decide whether `scoped` earns its
+syntax. Since `defer` will exist regardless, the mechanism cost of `scoped` is
+zero — it's pure sugar on top.
+
+### R3 — The value-producing destructor breaks the block-value rule
+
+`commands := ClayLayout { draw() }` — a reader expects `commands` to be
+`draw()`'s value; it's actually the destructor's return. Two value rules.
+
+**Answer.** The framing that makes it consistent: a scoped block's value is
+defined by the resource's *destructor contract* when that destructor returns a
+non-unit type — one rule about scoped blocks, predictable once known, and it
+matches the immediate-mode mental model ("the frame produces the render
+commands"). The escape hatches keep it explicit where it matters: in statement
+position the value is discarded, and `as name` avoids the implicit binding.
+It's a subtlety worth naming, not a reason to drop the feature. (There's even
+a silver lining: the value is produced *after* the resource is torn down, so a
+value-producing destructor's output can't alias the resource it closes.)
+
+### R4 — The grammar surface is real
+
+`File("x") { }`, `Window as w { }`, `ClayLayout { }` — the parser must
+distinguish a scoped block from a call-followed-by-a-block.
+
+**Answer.** Resolved by name resolution, not by guessing: `X(...) { }` is a
+scoped block exactly when `X` resolves to a `scoped` resource declaration.
+Context-sensitive syntax exists in every language (C's declaration-vs-call,
+C++/Java generics, Rust's `{}` block-vs-struct-literal); this is no worse.
+And if someone dislikes the implicit `it`, a custom binding is always
+available (`File as f { ... }`), so the construct never forces magic on you.
+
+### R5 — `it` is implicit magic
+
+A hidden variable is constructed and cleaned up around the body.
+
+**Answer.** That's the construct's point — a resource is opened and closed
+around the body — and it's visible in the declaration (`File :: scoped {
+file_open, file_close }`). Anyone who finds `it` surprising can name it
+explicitly. The trade is explicitness for conciseness, in the "happy path is
+the short path" spirit.
+
+### R6 — The failure gate is under-specified
+
+It covers "the constructor says skip the body", not partial construction or
+nested failures.
+
+**Answer.** True. The gate is a deliberate, narrow first step (it's the ImGui
+collapsed-window case). Full failure semantics (`errdefer`, partial-construction
+handling) is future work, listed under Open questions. `scoped` promises a
+pairing, not a safety model.
+
+### R7 — Why hasn't someone beaten us to it?
+
+Python's `contextmanager`, D's `scope(exit)`, C++ `scope_guard` exist as
+library patterns; no mainstream language made a dedicated keyword of it.
+
+**Answer.** The pattern is known and shipped — as a library pattern — and the
+reason it's not a keyword is that it's sugar over defer/RAII that most
+languages don't need to advertise. londolang's situation is different: it has
+no metaprogramming, so a first-class `scoped` gives users the pattern without
+one. If metaprogramming arrives, `scoped` can become a library; the keyword is
+the interim form, not necessarily the final one.
+
+### R8 — Metaprogramming could do this better (the `#code` argument)
+
+Compile-time code generation (Jai-style `#code` blocks — code that produces
+code) could build the scoped pattern as a *library*, no keyword needed. Clay's
+macro is a text-level hack that metaprogramming replaces cleanly.
+
+**Answer.** This is the strongest critique. londolang has no metaprogramming,
+and the honest options are: (a) build `scoped` as a keyword now, accepting it
+may be superseded by a library later, or (b) build metaprogramming first and
+make `scoped` a library. Metaprogramming is a far bigger investment than
+`defer`, and londolang is nowhere near it. So the sequence is: `defer` first,
+then decide whether `scoped` (keyword) or metaprogramming (library) is the
+right vehicle. The keyword buys the pattern today, cheaply, and is a natural
+stepping stone — not a trap.
+
+### Verdict
+
+`scoped` is a proposal, not a commitment. It's cheap once `defer` exists, it
+is a genuine ergonomic improvement with clear escape hatches, and it gives the
+pattern to a language that currently has no metaprogramming to build it with.
+It should be built after `defer`, dogfooded on real code, and kept only if it
+earns its keep — and reconsidered if and when metaprogramming arrives.
+
 ## Open questions / future work
 
 - **Multiple resources in one scope**:
