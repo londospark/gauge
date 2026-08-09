@@ -1,10 +1,11 @@
 package lexer
 
 import "core:testing"
+import tok "../token"
 
 TestCase :: struct {
 	src:          string,
-	expected:     []Token,
+	expected:     []tok.Token,
 	expect_error: bool,
 }
 
@@ -41,44 +42,44 @@ test_lex_basics :: proc(t: ^testing.T) {
 	cases := []TestCase{
 		{
 			src = "",
-			expected = []Token{
-				Token{offset = 0, value = SimpleToken.EOF},
+			expected = []tok.Token{
+				tok.Token{offset = 0, value = tok.SimpleToken.EOF},
 			},
 		},
 		{
 			src = "a ",
-			expected = []Token{
-				Token{offset = 0, value = Identifier("a")},
-				Token{offset = 2, value = SimpleToken.EOF},
+			expected = []tok.Token{
+				tok.Token{offset = 0, value = tok.Identifier("a")},
+				tok.Token{offset = 2, value = tok.SimpleToken.EOF},
 			},
 		},
 		{
 			src = "foo",
-			expected = []Token{
-				Token{offset = 0, value = Identifier("foo")},
-				Token{offset = 3, value = SimpleToken.EOF},
+			expected = []tok.Token{
+				tok.Token{offset = 0, value = tok.Identifier("foo")},
+				tok.Token{offset = 3, value = tok.SimpleToken.EOF},
 			},
 		},
 		{
 			src = "a\r\nb",
-			expected = []Token{
-				Token{offset = 0, value = Identifier("a")},
-				Token{offset = 2, value = SimpleToken.NewLine},
-				Token{offset = 3, value = Identifier("b")},
-				Token{offset = 4, value = SimpleToken.EOF},
+			expected = []tok.Token{
+				tok.Token{offset = 0, value = tok.Identifier("a")},
+				tok.Token{offset = 2, value = tok.SimpleToken.NewLine},
+				tok.Token{offset = 3, value = tok.Identifier("b")},
+				tok.Token{offset = 4, value = tok.SimpleToken.EOF},
 			},
 		},
 		{
 			src = "  \t\r",
-			expected = []Token{
-				Token{offset = 4, value = SimpleToken.EOF},
+			expected = []tok.Token{
+				tok.Token{offset = 4, value = tok.SimpleToken.EOF},
 			},
 		},
 		{
 			src = "\n",
-			expected = []Token{
-				Token{offset = 0, value = SimpleToken.NewLine},
-				Token{offset = 1, value = SimpleToken.EOF},
+			expected = []tok.Token{
+				tok.Token{offset = 0, value = tok.SimpleToken.NewLine},
+				tok.Token{offset = 1, value = tok.SimpleToken.EOF},
 			},
 		},
 	}
@@ -93,29 +94,29 @@ test_lex_symbols :: proc(t: ^testing.T) {
 	cases := []TestCase{
 		{
 			src = "(){}",
-			expected = []Token{
-				Token{offset = 0, value = SimpleToken.LParen},
-				Token{offset = 1, value = SimpleToken.RParen},
-				Token{offset = 2, value = SimpleToken.LSquirly},
-				Token{offset = 3, value = SimpleToken.RSquirly},
-				Token{offset = 4, value = SimpleToken.EOF},
+			expected = []tok.Token{
+				tok.Token{offset = 0, value = tok.SimpleToken.LParen},
+				tok.Token{offset = 1, value = tok.SimpleToken.RParen},
+				tok.Token{offset = 2, value = tok.SimpleToken.LSquirly},
+				tok.Token{offset = 3, value = tok.SimpleToken.RSquirly},
+				tok.Token{offset = 4, value = tok.SimpleToken.EOF},
 			},
 		},
 		{
 			src = "::",
-			expected = []Token{
-				Token{offset = 0, value = SimpleToken.Colon},
-				Token{offset = 1, value = SimpleToken.Colon},
-				Token{offset = 2, value = SimpleToken.EOF},
+			expected = []tok.Token{
+				tok.Token{offset = 0, value = tok.SimpleToken.Colon},
+				tok.Token{offset = 1, value = tok.SimpleToken.Colon},
+				tok.Token{offset = 2, value = tok.SimpleToken.EOF},
 			},
 		},
 		{
 			src = "a,b",
-			expected = []Token{
-				Token{offset = 0, value = Identifier("a")},
-				Token{offset = 1, value = SimpleToken.Comma},
-				Token{offset = 2, value = Identifier("b")},
-				Token{offset = 3, value = SimpleToken.EOF},
+			expected = []tok.Token{
+				tok.Token{offset = 0, value = tok.Identifier("a")},
+				tok.Token{offset = 1, value = tok.SimpleToken.Comma},
+				tok.Token{offset = 2, value = tok.Identifier("b")},
+				tok.Token{offset = 3, value = tok.SimpleToken.EOF},
 			},
 		},
 	}
@@ -130,50 +131,50 @@ test_lex_numbers :: proc(t: ^testing.T) {
 	cases := []TestCase{
 		{
 			src = "123",
-			expected = []Token{
-				Token{offset = 0, value = Number("123")},
-				Token{offset = 3, value = SimpleToken.EOF},
+			expected = []tok.Token{
+				tok.Token{offset = 0, value = tok.Number("123")},
+				tok.Token{offset = 3, value = tok.SimpleToken.EOF},
 			},
 		},
 		{
 			src = "42 7",
-			expected = []Token{
-				Token{offset = 0, value = Number("42")},
-				Token{offset = 3, value = Number("7")},
-				Token{offset = 4, value = SimpleToken.EOF},
+			expected = []tok.Token{
+				tok.Token{offset = 0, value = tok.Number("42")},
+				tok.Token{offset = 3, value = tok.Number("7")},
+				tok.Token{offset = 4, value = tok.SimpleToken.EOF},
 			},
 		},
 		{
 			src = "12a",
-			expected = []Token{
-				Token{offset = 0, value = Number("12")},
-				Token{offset = 2, value = Identifier("a")},
-				Token{offset = 3, value = SimpleToken.EOF},
+			expected = []tok.Token{
+				tok.Token{offset = 0, value = tok.Number("12")},
+				tok.Token{offset = 2, value = tok.Identifier("a")},
+				tok.Token{offset = 3, value = tok.SimpleToken.EOF},
 			},
 		},
 		{
 			src = "abc123",
-			expected = []Token{
-				Token{offset = 0, value = Identifier("abc")},
-				Token{offset = 3, value = Number("123")},
-				Token{offset = 6, value = SimpleToken.EOF},
+			expected = []tok.Token{
+				tok.Token{offset = 0, value = tok.Identifier("abc")},
+				tok.Token{offset = 3, value = tok.Number("123")},
+				tok.Token{offset = 6, value = tok.SimpleToken.EOF},
 			},
 		},
 		{
 			src = "3.14",
-			expected = []Token{
-				Token{offset = 0, value = Number("3.14")},
-				Token{offset = 4, value = SimpleToken.EOF},
+			expected = []tok.Token{
+				tok.Token{offset = 0, value = tok.Number("3.14")},
+				tok.Token{offset = 4, value = tok.SimpleToken.EOF},
 			},
 		},
 		{
 			src = "12(3)",
-			expected = []Token{
-				Token{offset = 0, value = Number("12")},
-				Token{offset = 2, value = SimpleToken.LParen},
-				Token{offset = 3, value = Number("3")},
-				Token{offset = 4, value = SimpleToken.RParen},
-				Token{offset = 5, value = SimpleToken.EOF},
+			expected = []tok.Token{
+				tok.Token{offset = 0, value = tok.Number("12")},
+				tok.Token{offset = 2, value = tok.SimpleToken.LParen},
+				tok.Token{offset = 3, value = tok.Number("3")},
+				tok.Token{offset = 4, value = tok.SimpleToken.RParen},
+				tok.Token{offset = 5, value = tok.SimpleToken.EOF},
 			},
 		},
 	}
@@ -188,31 +189,31 @@ test_lex_strings :: proc(t: ^testing.T) {
 	cases := []TestCase{
 		{
 			src = "\"abc\"",
-			expected = []Token{
-				Token{offset = 0, value = StringLiteral("abc")},
-				Token{offset = 5, value = SimpleToken.EOF},
+			expected = []tok.Token{
+				tok.Token{offset = 0, value = tok.StringLiteral("abc")},
+				tok.Token{offset = 5, value = tok.SimpleToken.EOF},
 			},
 		},
 		{
 			src = "\"a\\\"b\"",
-			expected = []Token{
-				Token{offset = 0, value = StringLiteral("a\\\"b")},
-				Token{offset = 6, value = SimpleToken.EOF},
+			expected = []tok.Token{
+				tok.Token{offset = 0, value = tok.StringLiteral("a\\\"b")},
+				tok.Token{offset = 6, value = tok.SimpleToken.EOF},
 			},
 		},
 		{
 			src = "\"a\\\\b\"",
-			expected = []Token{
-				Token{offset = 0, value = StringLiteral("a\\\\b")},
-				Token{offset = 6, value = SimpleToken.EOF},
+			expected = []tok.Token{
+				tok.Token{offset = 0, value = tok.StringLiteral("a\\\\b")},
+				tok.Token{offset = 6, value = tok.SimpleToken.EOF},
 			},
 		},
 		{
 			src = "\"abc\"xyz",
-			expected = []Token{
-				Token{offset = 0, value = StringLiteral("abc")},
-				Token{offset = 5, value = Identifier("xyz")},
-				Token{offset = 8, value = SimpleToken.EOF},
+			expected = []tok.Token{
+				tok.Token{offset = 0, value = tok.StringLiteral("abc")},
+				tok.Token{offset = 5, value = tok.Identifier("xyz")},
+				tok.Token{offset = 8, value = tok.SimpleToken.EOF},
 			},
 		},
 	}
@@ -227,62 +228,62 @@ test_lex_operators :: proc(t: ^testing.T) {
 	cases := []TestCase{
 		{
 			src = "=",
-			expected = []Token{
-				Token{offset = 0, value = SimpleToken.Equals},
-				Token{offset = 1, value = SimpleToken.EOF},
+			expected = []tok.Token{
+				tok.Token{offset = 0, value = tok.SimpleToken.Equals},
+				tok.Token{offset = 1, value = tok.SimpleToken.EOF},
 			},
 		},
 		{
 			src = "+=",
-			expected = []Token{
-				Token{offset = 0, value = SimpleToken.Plus},
-				Token{offset = 1, value = SimpleToken.Equals},
-				Token{offset = 2, value = SimpleToken.EOF},
+			expected = []tok.Token{
+				tok.Token{offset = 0, value = tok.SimpleToken.Plus},
+				tok.Token{offset = 1, value = tok.SimpleToken.Equals},
+				tok.Token{offset = 2, value = tok.SimpleToken.EOF},
 			},
 		},
 		{
 			src = "a-b",
-			expected = []Token{
-				Token{offset = 0, value = Identifier("a")},
-				Token{offset = 1, value = SimpleToken.Minus},
-				Token{offset = 2, value = Identifier("b")},
-				Token{offset = 3, value = SimpleToken.EOF},
+			expected = []tok.Token{
+				tok.Token{offset = 0, value = tok.Identifier("a")},
+				tok.Token{offset = 1, value = tok.SimpleToken.Minus},
+				tok.Token{offset = 2, value = tok.Identifier("b")},
+				tok.Token{offset = 3, value = tok.SimpleToken.EOF},
 			},
 		},
 		{
 			src = "a*b",
-			expected = []Token{
-				Token{offset = 0, value = Identifier("a")},
-				Token{offset = 1, value = SimpleToken.Star},
-				Token{offset = 2, value = Identifier("b")},
-				Token{offset = 3, value = SimpleToken.EOF},
+			expected = []tok.Token{
+				tok.Token{offset = 0, value = tok.Identifier("a")},
+				tok.Token{offset = 1, value = tok.SimpleToken.Star},
+				tok.Token{offset = 2, value = tok.Identifier("b")},
+				tok.Token{offset = 3, value = tok.SimpleToken.EOF},
 			},
 		},
 		{
 			src = "a/b",
-			expected = []Token{
-				Token{offset = 0, value = Identifier("a")},
-				Token{offset = 1, value = SimpleToken.Slash},
-				Token{offset = 2, value = Identifier("b")},
-				Token{offset = 3, value = SimpleToken.EOF},
+			expected = []tok.Token{
+				tok.Token{offset = 0, value = tok.Identifier("a")},
+				tok.Token{offset = 1, value = tok.SimpleToken.Slash},
+				tok.Token{offset = 2, value = tok.Identifier("b")},
+				tok.Token{offset = 3, value = tok.SimpleToken.EOF},
 			},
 		},
 		{
 			src = "a^b",
-			expected = []Token{
-				Token{offset = 0, value = Identifier("a")},
-				Token{offset = 1, value = SimpleToken.Hat},
-				Token{offset = 2, value = Identifier("b")},
-				Token{offset = 3, value = SimpleToken.EOF},
+			expected = []tok.Token{
+				tok.Token{offset = 0, value = tok.Identifier("a")},
+				tok.Token{offset = 1, value = tok.SimpleToken.Hat},
+				tok.Token{offset = 2, value = tok.Identifier("b")},
+				tok.Token{offset = 3, value = tok.SimpleToken.EOF},
 			},
 		},
 		{
 			src = "x = 5",
-			expected = []Token{
-				Token{offset = 0, value = Identifier("x")},
-				Token{offset = 2, value = SimpleToken.Equals},
-				Token{offset = 4, value = Number("5")},
-				Token{offset = 5, value = SimpleToken.EOF},
+			expected = []tok.Token{
+				tok.Token{offset = 0, value = tok.Identifier("x")},
+				tok.Token{offset = 2, value = tok.SimpleToken.Equals},
+				tok.Token{offset = 4, value = tok.Number("5")},
+				tok.Token{offset = 5, value = tok.SimpleToken.EOF},
 			},
 		},
 	}
@@ -297,17 +298,17 @@ test_lex_errors :: proc(t: ^testing.T) {
 	cases := []TestCase{
 		{
 			src = "\"abc",
-			expected = []Token{
-				Token{offset = 0, value = StringLiteral("abc")},
-				Token{offset = 4, value = SimpleToken.EOF},
+			expected = []tok.Token{
+				tok.Token{offset = 0, value = tok.StringLiteral("abc")},
+				tok.Token{offset = 4, value = tok.SimpleToken.EOF},
 			},
 			expect_error = true,
 		},
 		{
 			src = "a$b",
-			expected = []Token{
-				Token{offset = 0, value = Identifier("a")},
-				Token{offset = 3, value = SimpleToken.EOF},
+			expected = []tok.Token{
+				tok.Token{offset = 0, value = tok.Identifier("a")},
+				tok.Token{offset = 3, value = tok.SimpleToken.EOF},
 			},
 			expect_error = true,
 		},
@@ -323,53 +324,53 @@ test_lex_comments :: proc(t: ^testing.T) {
 	cases := []TestCase{
 		{
 			src = "// hello",
-			expected = []Token{
-				Token{offset = 8, value = SimpleToken.EOF},
+			expected = []tok.Token{
+				tok.Token{offset = 8, value = tok.SimpleToken.EOF},
 			},
 		},
 		{
 			src = "a // c\nb",
-			expected = []Token{
-				Token{offset = 0, value = Identifier("a")},
-				Token{offset = 6, value = SimpleToken.NewLine},
-				Token{offset = 7, value = Identifier("b")},
-				Token{offset = 8, value = SimpleToken.EOF},
+			expected = []tok.Token{
+				tok.Token{offset = 0, value = tok.Identifier("a")},
+				tok.Token{offset = 6, value = tok.SimpleToken.NewLine},
+				tok.Token{offset = 7, value = tok.Identifier("b")},
+				tok.Token{offset = 8, value = tok.SimpleToken.EOF},
 			},
 		},
 		{
 			src = "a // c",
-			expected = []Token{
-				Token{offset = 0, value = Identifier("a")},
-				Token{offset = 6, value = SimpleToken.EOF},
+			expected = []tok.Token{
+				tok.Token{offset = 0, value = tok.Identifier("a")},
+				tok.Token{offset = 6, value = tok.SimpleToken.EOF},
 			},
 		},
 		{
 			src = "a / b",
-			expected = []Token{
-				Token{offset = 0, value = Identifier("a")},
-				Token{offset = 2, value = SimpleToken.Slash},
-				Token{offset = 4, value = Identifier("b")},
-				Token{offset = 5, value = SimpleToken.EOF},
+			expected = []tok.Token{
+				tok.Token{offset = 0, value = tok.Identifier("a")},
+				tok.Token{offset = 2, value = tok.SimpleToken.Slash},
+				tok.Token{offset = 4, value = tok.Identifier("b")},
+				tok.Token{offset = 5, value = tok.SimpleToken.EOF},
 			},
 		},
 		{
 			src = "//\n",
-			expected = []Token{
-				Token{offset = 2, value = SimpleToken.NewLine},
-				Token{offset = 3, value = SimpleToken.EOF},
+			expected = []tok.Token{
+				tok.Token{offset = 2, value = tok.SimpleToken.NewLine},
+				tok.Token{offset = 3, value = tok.SimpleToken.EOF},
 			},
 		},
 		{
 			src = "x = 1 // comment\ny = 2",
-			expected = []Token{
-				Token{offset = 0, value = Identifier("x")},
-				Token{offset = 2, value = SimpleToken.Equals},
-				Token{offset = 4, value = Number("1")},
-				Token{offset = 16, value = SimpleToken.NewLine},
-				Token{offset = 17, value = Identifier("y")},
-				Token{offset = 19, value = SimpleToken.Equals},
-				Token{offset = 21, value = Number("2")},
-				Token{offset = 22, value = SimpleToken.EOF},
+			expected = []tok.Token{
+				tok.Token{offset = 0, value = tok.Identifier("x")},
+				tok.Token{offset = 2, value = tok.SimpleToken.Equals},
+				tok.Token{offset = 4, value = tok.Number("1")},
+				tok.Token{offset = 16, value = tok.SimpleToken.NewLine},
+				tok.Token{offset = 17, value = tok.Identifier("y")},
+				tok.Token{offset = 19, value = tok.SimpleToken.Equals},
+				tok.Token{offset = 21, value = tok.Number("2")},
+				tok.Token{offset = 22, value = tok.SimpleToken.EOF},
 			},
 		},
 	}
@@ -384,28 +385,28 @@ test_lex_program :: proc(t: ^testing.T) {
 	cases := []TestCase{
 		{
 			src = TestProgram,
-			expected = []Token{
-				Token{offset = 0, value = SimpleToken.NewLine},
-				Token{offset = 1, value = Identifier("main")},
-				Token{offset = 6, value = SimpleToken.Colon},
-				Token{offset = 7, value = SimpleToken.Colon},
-				Token{offset = 9, value = SimpleToken.LParen},
-				Token{offset = 10, value = SimpleToken.RParen},
-				Token{offset = 12, value = SimpleToken.LSquirly},
-				Token{offset = 13, value = SimpleToken.NewLine},
-				Token{offset = 15, value = Identifier("answer")},
-				Token{offset = 22, value = SimpleToken.Equals},
-				Token{offset = 24, value = Number("40")},
-				Token{offset = 27, value = SimpleToken.Plus},
-				Token{offset = 29, value = Number("2")},
-				Token{offset = 30, value = SimpleToken.NewLine},
-				Token{offset = 32, value = Identifier("print")},
-				Token{offset = 37, value = SimpleToken.LParen},
-				Token{offset = 38, value = Identifier("answer")},
-				Token{offset = 44, value = SimpleToken.RParen},
-				Token{offset = 45, value = SimpleToken.NewLine},
-				Token{offset = 46, value = SimpleToken.RSquirly},
-				Token{offset = 47, value = SimpleToken.EOF},
+			expected = []tok.Token{
+				tok.Token{offset = 0, value = tok.SimpleToken.NewLine},
+				tok.Token{offset = 1, value = tok.Identifier("main")},
+				tok.Token{offset = 6, value = tok.SimpleToken.Colon},
+				tok.Token{offset = 7, value = tok.SimpleToken.Colon},
+				tok.Token{offset = 9, value = tok.SimpleToken.LParen},
+				tok.Token{offset = 10, value = tok.SimpleToken.RParen},
+				tok.Token{offset = 12, value = tok.SimpleToken.LSquirly},
+				tok.Token{offset = 13, value = tok.SimpleToken.NewLine},
+				tok.Token{offset = 15, value = tok.Identifier("answer")},
+				tok.Token{offset = 22, value = tok.SimpleToken.Equals},
+				tok.Token{offset = 24, value = tok.Number("40")},
+				tok.Token{offset = 27, value = tok.SimpleToken.Plus},
+				tok.Token{offset = 29, value = tok.Number("2")},
+				tok.Token{offset = 30, value = tok.SimpleToken.NewLine},
+				tok.Token{offset = 32, value = tok.Identifier("print")},
+				tok.Token{offset = 37, value = tok.SimpleToken.LParen},
+				tok.Token{offset = 38, value = tok.Identifier("answer")},
+				tok.Token{offset = 44, value = tok.SimpleToken.RParen},
+				tok.Token{offset = 45, value = tok.SimpleToken.NewLine},
+				tok.Token{offset = 46, value = tok.SimpleToken.RSquirly},
+				tok.Token{offset = 47, value = tok.SimpleToken.EOF},
 			},
 		},
 	}

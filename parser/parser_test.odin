@@ -1,16 +1,16 @@
 package parser
 
 import "core:testing"
-import "../lexer"
+import tok "../token"
 
 @(test)
 test_parse_const_number :: proc(t: ^testing.T) {
-	tokens := []lexer.Token{
-		{offset = 0, value = lexer.Identifier("x")},
-		{offset = 2, value = lexer.SimpleToken.Colon},
-		{offset = 3, value = lexer.SimpleToken.Colon},
-		{offset = 5, value = lexer.Number("42")},
-		{offset = 7, value = lexer.SimpleToken.EOF},
+	tokens := []tok.Token{
+		{offset = 0, value = tok.Identifier("x")},
+		{offset = 2, value = tok.SimpleToken.Colon},
+		{offset = 3, value = tok.SimpleToken.Colon},
+		{offset = 5, value = tok.Number("42")},
+		{offset = 7, value = tok.SimpleToken.EOF},
 	}
 
 	program, ok, err := parse(tokens, context.temp_allocator)
@@ -40,12 +40,12 @@ test_parse_const_number :: proc(t: ^testing.T) {
 
 @(test)
 test_parse_const_string :: proc(t: ^testing.T) {
-	tokens := []lexer.Token{
-		{offset = 0, value = lexer.Identifier("greeting")},
-		{offset = 9, value = lexer.SimpleToken.Colon},
-		{offset = 10, value = lexer.SimpleToken.Colon},
-		{offset = 12, value = lexer.StringLiteral("hellope")},
-		{offset = 20, value = lexer.SimpleToken.EOF},
+	tokens := []tok.Token{
+		{offset = 0, value = tok.Identifier("greeting")},
+		{offset = 9, value = tok.SimpleToken.Colon},
+		{offset = 10, value = tok.SimpleToken.Colon},
+		{offset = 12, value = tok.StringLiteral("hellope")},
+		{offset = 20, value = tok.SimpleToken.EOF},
 	}
 
 	program, ok, err := parse(tokens, context.temp_allocator)
@@ -75,16 +75,16 @@ test_parse_const_string :: proc(t: ^testing.T) {
 
 @(test)
 test_parse_empty_proc :: proc(t: ^testing.T) {
-	tokens := []lexer.Token{
-		{offset = 0, value = lexer.Identifier("main")},
-		{offset = 5, value = lexer.SimpleToken.Colon},
-		{offset = 6, value = lexer.SimpleToken.Colon},
-		{offset = 8, value = lexer.SimpleToken.LParen},
-		{offset = 9, value = lexer.SimpleToken.RParen},
-		{offset = 11, value = lexer.SimpleToken.LSquirly},
-		{offset = 12, value = lexer.SimpleToken.NewLine},
-		{offset = 13, value = lexer.SimpleToken.RSquirly},
-		{offset = 14, value = lexer.SimpleToken.EOF},
+	tokens := []tok.Token{
+		{offset = 0, value = tok.Identifier("main")},
+		{offset = 5, value = tok.SimpleToken.Colon},
+		{offset = 6, value = tok.SimpleToken.Colon},
+		{offset = 8, value = tok.SimpleToken.LParen},
+		{offset = 9, value = tok.SimpleToken.RParen},
+		{offset = 11, value = tok.SimpleToken.LSquirly},
+		{offset = 12, value = tok.SimpleToken.NewLine},
+		{offset = 13, value = tok.SimpleToken.RSquirly},
+		{offset = 14, value = tok.SimpleToken.EOF},
 	}
 
 	program, ok, err := parse(tokens, context.temp_allocator)
@@ -109,22 +109,22 @@ test_parse_empty_proc :: proc(t: ^testing.T) {
 
 @(test)
 test_parse_proc_body :: proc(t: ^testing.T) {
-	tokens := []lexer.Token{
-		{offset = 0, value = lexer.Identifier("main")},
-		{offset = 5, value = lexer.SimpleToken.Colon},
-		{offset = 6, value = lexer.SimpleToken.Colon},
-		{offset = 8, value = lexer.SimpleToken.LParen},
-		{offset = 9, value = lexer.SimpleToken.RParen},
-		{offset = 11, value = lexer.SimpleToken.LSquirly},
-		{offset = 12, value = lexer.SimpleToken.NewLine},
-		{offset = 14, value = lexer.Identifier("answer")},
-		{offset = 21, value = lexer.SimpleToken.Equals},
-		{offset = 23, value = lexer.Number("40")},
-		{offset = 26, value = lexer.SimpleToken.Plus},
-		{offset = 28, value = lexer.Number("2")},
-		{offset = 29, value = lexer.SimpleToken.NewLine},
-		{offset = 30, value = lexer.SimpleToken.RSquirly},
-		{offset = 31, value = lexer.SimpleToken.EOF},
+	tokens := []tok.Token{
+		{offset = 0, value = tok.Identifier("main")},
+		{offset = 5, value = tok.SimpleToken.Colon},
+		{offset = 6, value = tok.SimpleToken.Colon},
+		{offset = 8, value = tok.SimpleToken.LParen},
+		{offset = 9, value = tok.SimpleToken.RParen},
+		{offset = 11, value = tok.SimpleToken.LSquirly},
+		{offset = 12, value = tok.SimpleToken.NewLine},
+		{offset = 14, value = tok.Identifier("answer")},
+		{offset = 21, value = tok.SimpleToken.Equals},
+		{offset = 23, value = tok.Number("40")},
+		{offset = 26, value = tok.SimpleToken.Plus},
+		{offset = 28, value = tok.Number("2")},
+		{offset = 29, value = tok.SimpleToken.NewLine},
+		{offset = 30, value = tok.SimpleToken.RSquirly},
+		{offset = 31, value = tok.SimpleToken.EOF},
 	}
 
 	program, ok, err := parse(tokens, context.temp_allocator)

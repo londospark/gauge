@@ -28,13 +28,14 @@ All tools live in the project's devenv shell — there is nothing installed ad-h
 
 ## Design notes
 
-- `lexer.Token` is `{ offset: int, value: Value }`. Positions are **byte offsets**, never line/col.
+- Code semantics — panic-vs-error (compiler bugs vs source bugs), `(T, bool)` + `or_return` propagation, stub/`todo` conventions, `@Note`/`@Review` lifecycle — live in `docs/style_guide.md`.
+- `token.Token` is `{ offset: int, value: Value }`. Positions are **byte offsets**, never line/col.
 - Newlines are explicit `NewLine` tokens; the parser decides if one ends a statement.
 - `peek`/`advance` return `(u8, bool)` — `false` means EOF. Never use `0` as an EOF sentinel (NUL is a valid byte).
-- In the `lexer` package: `lex_identifier`/`lex_string`/`lex_number` return `(Token, bool)`; `lex` returns `(tokens, ok)` and stops on the first error.
+- In the `lexer` package: `lex_identifier`/`lex_string`/`lex_number` return `(token.Token, bool)`; `lex` returns `(tokens, ok)` and stops on the first error.
 - Line comments (`//`) are skipped by the lexer; `Slash` is only emitted when the `/` isn't followed by another `/`.
 - String values are escape-aware (`\"`, `\\`) and are zero-copy slices of the source.
-- The `parser` package imports `../lexer`; everything else imports by package path.
+- The `lexer` and `parser` packages both import `../token` for the shared token types; the lexer machinery stays in `lexer`. Everything else imports by package path.
 
 ## Formatting (manual — there is no odinfmt)
 

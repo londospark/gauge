@@ -1,39 +1,7 @@
 package lexer
 
 import "core:fmt"
-
-Token :: struct {
-	offset:  int,
-	value:   Value,
-}
-
-Value :: union #no_nil {
-	SimpleToken,
-	Identifier,
-	Number,
-	StringLiteral,
-}
-
-Identifier    :: distinct string
-Number        :: distinct string
-StringLiteral :: distinct string
-
-SimpleToken :: enum {
-	Colon,
-	LParen,
-	RParen,
-	LSquirly,
-	RSquirly,
-	Comma,
-	Equals,
-	Plus,
-	Minus,
-	Star,
-	Slash,
-	Hat,
-	NewLine,
-	EOF,
-}
+import tok "../token"
 
 Lexer :: struct {
 	source:   string,
@@ -44,8 +12,8 @@ make_lexer :: proc(input: string) -> Lexer {
 	return Lexer { source = input, position = 0 }
 }
 
-lex :: proc(lexer: ^Lexer, allocator := context.allocator) -> (tokens: [dynamic]Token, ok: bool) {
-	result := make([dynamic]Token, allocator)
+lex :: proc(lexer: ^Lexer, allocator := context.allocator) -> (tokens: [dynamic]tok.Token, ok: bool) {
+	result := make([dynamic]tok.Token, allocator)
 	ok = true
 
 	lexing: for lexer.position < len(lexer.source) {
@@ -95,13 +63,13 @@ lex :: proc(lexer: ^Lexer, allocator := context.allocator) -> (tokens: [dynamic]
 		}
 	}
 
-	append(&result, Token { offset = len(lexer.source), value = .EOF })
+	append(&result, tok.Token { offset = len(lexer.source), value = .EOF })
 
 	return result, ok
 }
 
-lex_single :: proc(lexer: ^Lexer, token_kind: SimpleToken) -> Token {
-	token := Token { offset = lexer.position, value = token_kind }
+lex_single :: proc(lexer: ^Lexer, token_kind: tok.SimpleToken) -> tok.Token {
+	token := tok.Token { offset = lexer.position, value = token_kind }
 	advance(lexer)
 	return token
 }
@@ -124,17 +92,17 @@ peek_at :: proc(lexer: ^Lexer, ahead: int) -> (u8, bool) {
 	return lexer.source[pos], true
 }
 
-lex_identifier :: proc(lexer: ^Lexer) -> (Token, bool) {
+lex_identifier :: proc(lexer: ^Lexer) -> (tok.Token, bool) {
 	start := lexer.position
 	for {
 		c, ok := peek(lexer)
 		if !ok || !is_lowercase(c) do break
 		advance(lexer)
 	}
-	return Token { offset = start, value = Identifier(lexer.source[start:lexer.position]) }, start != lexer.position
+	return tok.Token { offset = start, value = tok.Identifier(lexer.source[start:lexer.position]) }, start != lexer.position
 }
 
-lex_string :: proc(lexer: ^Lexer) -> (Token, bool) {
+lex_string :: proc(lexer: ^Lexer) -> (tok.Token, bool) {
 	token_start := lexer.position
 	advance(lexer)
 	start := lexer.position
@@ -158,10 +126,10 @@ lex_string :: proc(lexer: ^Lexer) -> (Token, bool) {
 
 	advance(lexer)
 
-	return Token { offset = token_start, value = StringLiteral(lexer.source[start:end]) }, terminated
+	return tok.Token { offset = token_start, value = tok.StringLiteral(lexer.source[start:end]) }, terminated
 }
 
-lex_number :: proc(lexer: ^Lexer) -> (Token, bool) {
+lex_number :: proc(lexer: ^Lexer) -> (tok.Token, bool) {
 	start := lexer.position
 
 	for {
@@ -182,7 +150,7 @@ lex_number :: proc(lexer: ^Lexer) -> (Token, bool) {
 		}
 	}
 
-	return Token { offset = start, value = Number(lexer.source[start:lexer.position]) }, start != lexer.position
+	return tok.Token { offset = start, value = tok.Number(lexer.source[start:lexer.position]) }, start != lexer.position
 }
 
 skip_line_comment :: proc(lexer: ^Lexer) {
