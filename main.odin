@@ -13,7 +13,7 @@ main :: proc() {
 	tokens, ok := lexer.lex(&lexer_state, context.temp_allocator)
 
 	if !ok {
-		fmt.eprintln("lexing failed")
+		fmt.eprintln(lexer_state.err)
 	}
 
 	for token in tokens {

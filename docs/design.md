@@ -48,6 +48,7 @@ Consistency and familiarity sometimes pull against each other. Pure consistency 
 
 - **Everything is an expression** — no statements. What you'd call a statement is an expression returning unit. One grammar concept.
 - **`::` name-first declarations** — the Wirth/Odin way: `x :: 5`, `main :: proc() {}`.
+- **Constants may reference forward.** `GiB :: 1024 * TiB` is legal with `TiB` declared later — no forward declaration, no ordering ceremony. This is free: the parser never resolves names (an `Ident` is order-agnostic), so the rule only constrains the constant-folding pass to not assume source order. The one cost: a cyclic chain (`A :: B; B :: A`) is a source error diagnosed at fold time, never a hang or a panic.
 - **Newline = pure separator.** Newlines separate expressions and carry no value semantics. A block's value is its last expression; to "return nothing", end with a unit expression.
 - **Blocks are values and scopes.** `{ ... }` composes like any expression and is a scope; scoped defers will ride on blocks.
 - **`scoped` resources are core.** The declarative, block-scoped resource model — `File :: scoped { file_open, file_close }`, `File("data.txt") { ... }` — is the language's reason to exist, not a convenience. See [scoping.md](scoping.md).

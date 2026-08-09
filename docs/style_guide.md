@@ -38,6 +38,10 @@ Everything below hangs off one idea:
 - A syntax error that is *reportable* is a value even if the current pass
   cannot recover from it. Recovery is a later feature; representable errors
   are a property of the interface, not of the implementation.
+- Diagnostics are grammatical sentences: capitalised, positions reported as
+  bytes. The house template is `Expected X at byte N, got Y` — e.g.
+  `Expected an expression at byte 12, got Star`. Internal panics (`todo: …`)
+  stay lowercase; they are not user-facing.
 - Retrofitting failure handling is the most expensive thing to add later, so
   the `(T, bool)` shape is used by every parse function from day one — the
   one place we build ahead of the slice.

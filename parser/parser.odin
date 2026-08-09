@@ -13,6 +13,11 @@ Parser :: struct {
 
 // --- AST ---
 
+// A node's offset is the byte of the token that created it — the
+// operator for Binary/Assign, the `(` for Call, the token itself
+// for atoms and Const. Never the start of the whole span: pulling
+// a span start out of the Expr union would need a variant switch,
+// and the creating token is the more precise diagnostic target.
 Node :: struct {
 	offset: int
 }
@@ -58,7 +63,7 @@ Unary :: struct {
 
 String :: struct {
 	using node: Node,
-	value:      string,
+	value:      tok.StringLiteral,
 }
 
 Number :: struct {
@@ -67,9 +72,10 @@ Number :: struct {
 	// @Note: this could be a numeric type, but at this point I
 	//        don't think that it would be wise because it would
 	//        have to be a float, and there's precision loss there.
-	// @Review: resolved — keep raw text, parse to a typed value
-	//          in the constant-folding pass.
-	value:      string,
+	// @Review: resolved — keep raw text, typed as tok.Number at the
+	//          boundary so only a Number token can fill this field;
+	//          parse to a typed value in the constant-folding pass.
+	value:      tok.Number,
 }
 
 Ident :: struct {
@@ -156,7 +162,7 @@ expect_simple :: proc(p: ^Parser, kind: tok.SimpleToken) -> (token: tok.Token, o
 		advance(p)
 		return token, true
 	}
-	p.err = fmt.tprintf("expected %v at byte %d, got %v", kind, token.offset, token.value)
+	p.err = fmt.tprintf("Expected %v at byte %d, got %v", kind, token.offset, token.value)
 	return token, false
 }
 
@@ -166,21 +172,34 @@ expect_identifier :: proc(p: ^Parser) -> (ident: tok.Identifier, offset: int, ok
 		advance(p)
 		return name, token.offset, true
 	}
-	p.err = fmt.tprintf("expected Identifier at byte %d, got %v", token.offset, token.value)
+	p.err = fmt.tprintf("Expected Identifier at byte %d, got %v", token.offset, token.value)
 	return "", 0, false
 }
 
 // --- Pratt (expressions) ---
 
-Binding_Power :: struct {
+BindingPower :: struct {
 	left:  int,
 	right: int,
 }
 
 // Precedence table: Equals (2,1) right; Plus/Minus (10,11); Star/Slash (20,21); LParen (30,30).
 // Left-assoc: left < right. Right-assoc: left > right. See docs/pratt_parsing.md.
-binding_power :: proc(token: tok.Token) -> (Binding_Power, bool) {
-	panic("todo: binding_power")
+binding_power :: proc(token: tok.Token) -> (BindingPower, bool) {
+	simple, is_simple := token.value.(tok.SimpleToken)
+	if !is_simple do return BindingPower { left = 0, right = 0 }, false
+
+	#partial switch simple {
+	case .Equals:
+		return BindingPower { left = 2, right = 1 }, true
+	case .Plus, .Minus:
+		return BindingPower { left = 10, right = 11 }, true
+	case .Star, .Slash:
+		return BindingPower { left = 20, right = 21 }, true
+	case .LParen:
+		return BindingPower { left = 30, right = 30 }, true
+	}
+	return BindingPower { left = 0, right = 0 }, false
 }
 
 to_binary_operator :: proc(simple: tok.SimpleToken) -> BinaryOperator {
@@ -194,15 +213,41 @@ to_binary_operator :: proc(simple: tok.SimpleToken) -> BinaryOperator {
 }
 
 parse_expression :: proc(p: ^Parser, minimum_binding_power: int, allocator := context.allocator) -> (expr: ^Expr, ok: bool) {
-	panic("todo: parse_expression")
+	lhs := parse_prefix(p, allocator) or_return
+	
+	for {
+		bp, ok := binding_power(current(p))
+		if bp.left < minimum_binding_power || !ok do return lhs, true
+		operator := advance(p)
+		rhs := parse_expression(p, bp.right, allocator) or_return
+		lhs = parse_infix(p, operator, lhs, rhs) or_return
+	}
 }
 
 parse_prefix :: proc(p: ^Parser, allocator := context.allocator) -> (expr: ^Expr, ok: bool) {
-	panic("todo: parse_prefix")
+	token := current(p)
+	switch v in token.value {
+	case tok.Number:
+		advance(p)
+		return new_number(v, token.offset, allocator), true
+
+	case tok.Identifier:
+		advance(p)
+		return new_ident(v, token.offset, allocator), true
+
+	case tok.StringLiteral:
+		advance(p)
+		return new_string(v, token.offset, allocator), true
+
+	case tok.SimpleToken:
+		p.err = fmt.tprintf("Expected an expression at byte %d, got %v", token.offset, token.value)
+	}
+
+	return nil, false
 }
 
 parse_infix :: proc(p: ^Parser, operator: tok.Token, left: ^Expr, right: ^Expr, allocator := context.allocator) -> (expr: ^Expr, ok: bool) {
-	panic("todo: parse_infix")
+	return new_binary(to_binary_operator(operator.value.(tok.SimpleToken)), left, right, operator.offset, allocator), true
 }
 
 parse_args :: proc(p: ^Parser, allocator := context.allocator) -> (args: [dynamic]^Expr, ok: bool) {
@@ -260,11 +305,11 @@ new_unit :: proc(offset: int, allocator := context.allocator) -> ^Expr {
 	return new_expr(Unit { node = Node { offset = offset } }, allocator)
 }
 
-new_number :: proc(value: string, offset: int, allocator := context.allocator) -> ^Expr {
+new_number :: proc(value: tok.Number, offset: int, allocator := context.allocator) -> ^Expr {
 	return new_expr(Number { node = Node { offset = offset }, value = value }, allocator)
 }
 
-new_string :: proc(value: string, offset: int, allocator := context.allocator) -> ^Expr {
+new_string :: proc(value: tok.StringLiteral, offset: int, allocator := context.allocator) -> ^Expr {
 	return new_expr(String { node = Node { offset = offset }, value = value }, allocator)
 }
 

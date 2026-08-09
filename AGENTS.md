@@ -47,6 +47,7 @@ All tools live in the project's devenv shell — there is nothing installed ad-h
 Match the project's hand-aligned style:
 
 - **Tabs** for indentation, one level per nest.
+- `case` labels sit flush with their `switch`, never indented beneath it (the Odin stdlib convention).
 - `::` for all declarations (constants, types, procedures).
 - Align the **types** in successive field declarations and the `::` in successive type/constant declarations. Alignment applies only within a run of consecutive lines — a break (a blank line, a comment, or a scope end like `}`) ends the run, and what follows may use its own indentation:
 

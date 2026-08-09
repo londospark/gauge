@@ -155,3 +155,70 @@ test_parse_proc_body :: proc(t: ^testing.T) {
 		testing.expect(t, false, "first declaration should be a procedure")
 	}
 }
+
+@(test)
+test_parse_const_arithmetic_reference :: proc(t: ^testing.T) {
+	tokens := []tok.Token{
+		{offset = 0, value = tok.Identifier("KiB")},
+		{offset = 4, value = tok.SimpleToken.Colon},
+		{offset = 5, value = tok.SimpleToken.Colon},
+		{offset = 7, value = tok.Number("1024")},
+		{offset = 11, value = tok.SimpleToken.NewLine},
+		{offset = 12, value = tok.Identifier("MiB")},
+		{offset = 16, value = tok.SimpleToken.Colon},
+		{offset = 17, value = tok.SimpleToken.Colon},
+		{offset = 19, value = tok.Number("1024")},
+		{offset = 24, value = tok.SimpleToken.Star},
+		{offset = 26, value = tok.Identifier("KiB")},
+		{offset = 29, value = tok.SimpleToken.EOF},
+	}
+
+	program, ok, err := parse(tokens, context.temp_allocator)
+	testing.expectf(t, ok, "parse failed: %s", err)
+	if !ok {
+		return
+	}
+
+	testing.expectf(t, len(program.decls) == 2, "want 2 declarations, got %d", len(program.decls))
+	if len(program.decls) != 2 {
+		return
+	}
+
+	#partial switch d in program.decls[0]^ {
+	case Const:
+		testing.expectf(t, d.name == "KiB", "want constant 'KiB', got %q", d.name)
+		#partial switch v in d.value^ {
+		case Number:
+			testing.expectf(t, v.value == "1024", "want KiB value 1024, got %q", v.value)
+		case:
+			testing.expect(t, false, "KiB value should be a number literal")
+		}
+	case:
+		testing.expect(t, false, "first declaration should be a constant")
+	}
+
+	#partial switch d in program.decls[1]^ {
+	case Const:
+		testing.expectf(t, d.name == "MiB", "want constant 'MiB', got %q", d.name)
+		#partial switch v in d.value^ {
+		case Binary:
+			testing.expectf(t, v.operator == .Multiply, "want Multiply, got %v", v.operator)
+			#partial switch lhs in v.lhs^ {
+			case Number:
+				testing.expectf(t, lhs.value == "1024", "want lhs number 1024, got %q", lhs.value)
+			case:
+				testing.expect(t, false, "MiB lhs should be a number literal")
+			}
+			#partial switch rhs in v.rhs^ {
+			case Ident:
+				testing.expectf(t, rhs.name == "KiB", "want rhs reference to KiB, got %q", rhs.name)
+			case:
+				testing.expect(t, false, "MiB rhs should be a reference to KiB")
+			}
+		case:
+			testing.expect(t, false, "MiB value should be a multiplication")
+		}
+	case:
+		testing.expect(t, false, "second declaration should be a constant")
+	}
+}

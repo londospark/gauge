@@ -6,6 +6,7 @@ import tok "../token"
 Lexer :: struct {
 	source:   string,
 	position: int,
+	err:      string,
 }
 
 make_lexer :: proc(input: string) -> Lexer {
@@ -24,42 +25,42 @@ lex :: proc(lexer: ^Lexer, allocator := context.allocator) -> (tokens: [dynamic]
 		}
 
 		switch lexer.source[lexer.position] {
-			case ':':  append(&result, lex_single(lexer, .Colon))
-			case '(':  append(&result, lex_single(lexer, .LParen))
-			case ')':  append(&result, lex_single(lexer, .RParen))
-			case '{':  append(&result, lex_single(lexer, .LSquirly))
-			case '}':  append(&result, lex_single(lexer, .RSquirly))
-			case ',':  append(&result, lex_single(lexer, .Comma))
-			case '=':  append(&result, lex_single(lexer, .Equals))
-			case '+':  append(&result, lex_single(lexer, .Plus))
-			case '-':  append(&result, lex_single(lexer, .Minus))
-			case '*':  append(&result, lex_single(lexer, .Star))
-			case '/':
-				if next, ok := peek_at(lexer, 1); ok && next == '/' {
-					skip_line_comment(lexer)
-				} else {
-					append(&result, lex_single(lexer, .Slash))
-				}
-			case '^':  append(&result, lex_single(lexer, .Hat))
-			case '\n': append(&result, lex_single(lexer, .NewLine))
-			case 'a'..='z':
-				token, _ := lex_identifier(lexer)
-				append(&result, token)
-			case '0'..='9':
-				token, _ := lex_number(lexer)
-				append(&result, token)
-			case '"':
-				token, token_ok := lex_string(lexer)
-				append(&result, token)
-				if !token_ok {
-					fmt.eprintfln("unterminated string at byte %d", token.offset)
-					ok = false
-					break lexing
-				}
-			case:
-				fmt.eprintfln("UNRECOGNISED: %v", lexer)
+		case ':':  append(&result, lex_single(lexer, .Colon))
+		case '(':  append(&result, lex_single(lexer, .LParen))
+		case ')':  append(&result, lex_single(lexer, .RParen))
+		case '{':  append(&result, lex_single(lexer, .LSquirly))
+		case '}':  append(&result, lex_single(lexer, .RSquirly))
+		case ',':  append(&result, lex_single(lexer, .Comma))
+		case '=':  append(&result, lex_single(lexer, .Equals))
+		case '+':  append(&result, lex_single(lexer, .Plus))
+		case '-':  append(&result, lex_single(lexer, .Minus))
+		case '*':  append(&result, lex_single(lexer, .Star))
+		case '/':
+			if next, ok := peek_at(lexer, 1); ok && next == '/' {
+				skip_line_comment(lexer)
+			} else {
+				append(&result, lex_single(lexer, .Slash))
+			}
+		case '^':  append(&result, lex_single(lexer, .Hat))
+		case '\n': append(&result, lex_single(lexer, .NewLine))
+		case 'a'..='z':
+			token, _ := lex_identifier(lexer)
+			append(&result, token)
+		case '0'..='9':
+			token, _ := lex_number(lexer)
+			append(&result, token)
+		case '"':
+			token, token_ok := lex_string(lexer)
+			append(&result, token)
+			if !token_ok {
+				lexer.err = fmt.tprintf("Unterminated string at byte %d", token.offset)
 				ok = false
 				break lexing
+			}
+		case:
+			lexer.err = fmt.tprintf("Unrecognised character at byte %d", lexer.position)
+			ok = false
+			break lexing
 		}
 	}
 
