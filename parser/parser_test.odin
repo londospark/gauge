@@ -397,6 +397,103 @@ test_parse_unary_minus :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_parse_unary_minus_binds_looser_than_plus :: proc(t: ^testing.T) {
+	// x :: -2 + 3 must group as (-2) + 3, not -(2 + 3). This is the
+	// floor test: parsing the unary operand at 0 would drag the + in.
+	tokens := []tok.Token{
+		{offset = 0, value = tok.Identifier("x")},
+		{offset = 2, value = tok.SimpleToken.Colon},
+		{offset = 3, value = tok.SimpleToken.Colon},
+		{offset = 5, value = tok.SimpleToken.Minus},
+		{offset = 6, value = tok.Number("2")},
+		{offset = 8, value = tok.SimpleToken.Plus},
+		{offset = 10, value = tok.Number("3")},
+		{offset = 11, value = tok.SimpleToken.EOF},
+	}
+
+	program, ok, err := parse(tokens, context.temp_allocator)
+	testing.expectf(t, ok, "parse failed: %s", err)
+	if !ok {
+		return
+	}
+
+	testing.expectf(t, len(program.decls) == 1, "want 1 declaration, got %d", len(program.decls))
+	if len(program.decls) != 1 {
+		return
+	}
+
+	#partial switch d in program.decls[0]^ {
+	case Const:
+		#partial switch v in d.value^ {
+		case Binary:
+			// Root is `+`, so the unary grabbed only the 2.
+			testing.expectf(t, v.operator == .Add, "want root Add, got %v", v.operator)
+			#partial switch lhs in v.lhs^ {
+			case Unary:
+				testing.expectf(t, lhs.operator == .Minus, "want lhs unary Minus, got %v", lhs.operator)
+			case:
+				testing.expect(t, false, "root lhs should be the Unary(-2)")
+			}
+		case:
+			testing.expect(t, false, "value should be a binary expression")
+		}
+	case:
+		testing.expect(t, false, "declaration should be a constant")
+	}
+}
+
+@(test)
+test_parse_double_unary_minus :: proc(t: ^testing.T) {
+	// x :: --5 — double negation nests: Unary(Minus, Unary(Minus, 5)).
+	// The recursion must allow it, and the shape must be two nested
+	// Unary nodes, not an error.
+	tokens := []tok.Token{
+		{offset = 0, value = tok.Identifier("x")},
+		{offset = 2, value = tok.SimpleToken.Colon},
+		{offset = 3, value = tok.SimpleToken.Colon},
+		{offset = 5, value = tok.SimpleToken.Minus},
+		{offset = 6, value = tok.SimpleToken.Minus},
+		{offset = 7, value = tok.Number("5")},
+		{offset = 8, value = tok.SimpleToken.EOF},
+	}
+
+	program, ok, err := parse(tokens, context.temp_allocator)
+	testing.expectf(t, ok, "parse failed: %s", err)
+	if !ok {
+		return
+	}
+
+	testing.expectf(t, len(program.decls) == 1, "want 1 declaration, got %d", len(program.decls))
+	if len(program.decls) != 1 {
+		return
+	}
+
+	#partial switch d in program.decls[0]^ {
+	case Const:
+		#partial switch v in d.value^ {
+		case Unary:
+			testing.expectf(t, v.operator == .Minus, "want outer unary Minus, got %v", v.operator)
+			#partial switch inner in v.operand^ {
+			case Unary:
+				testing.expectf(t, inner.operator == .Minus, "want inner unary Minus, got %v", inner.operator)
+				#partial switch num in inner.operand^ {
+				case Number:
+					testing.expectf(t, num.value == "5", "want innermost 5, got %q", num.value)
+				case:
+					testing.expect(t, false, "innermost should be the number 5")
+				}
+			case:
+				testing.expect(t, false, "outer operand should be another Unary")
+			}
+		case:
+			testing.expect(t, false, "value should be a Unary expression")
+		}
+	case:
+		testing.expect(t, false, "declaration should be a constant")
+	}
+}
+
+@(test)
 test_parse_unary_minus_binds_tighter_than_star :: proc(t: ^testing.T) {
 	// x :: -2 * 3 must group as (-2) * 3, not -(2 * 3). The unary
 	// operand binds at power 21, strictly above `*`'s left strength 20.

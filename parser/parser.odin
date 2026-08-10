@@ -260,14 +260,19 @@ parse_prefix :: proc(p: ^Parser, allocator := context.allocator) -> (expr: ^Expr
 
 	case tok.SimpleToken:
 		if v == .LParen {
-			// @Note: advance rather than expect_simple — the if guard
-			//        already confirmed the token, so nothing to expect.
-			// @Review: resolved — advance is provably equivalent given
-			//          the guard; keep it.
+			// @Note: No need to expect anything, the if condition checked
+			//        it all for us.
+			// @Review: resolved — the `if v == .LParen` guard makes
+			//          advance() exactly equivalent to expect_simple; keep
+			//          it, the guard is the authority.
 			advance(p)
 			expr := parse_expression(p, 0, allocator) or_return
 			expect_simple(p, .RParen) or_return
 			return expr, true
+		} else if v == .Minus {
+			advance(p)
+			expr := parse_expression(p, 25, allocator) or_return
+			return new_unary(.Minus, expr, token.offset, allocator), true
 		}
 		p.err = fmt.tprintf("Expected an expression at byte %d, got %v", token.offset, token.value)
 
