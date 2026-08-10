@@ -100,9 +100,24 @@ Block :: struct {
 	body:       [dynamic]^Expr,
 }
 
+TypeName :: struct {
+	using node: Node,
+	name:       tok.Identifier
+}
+
+TypePointer :: struct {
+	using node: Node,
+	pointee:    ^Type
+}
+
+Type :: union #no_nil {
+	TypeName, TypePointer
+}
+
 Const :: struct {
 	using node: Node,
 	name:       tok.Identifier,
+	type:       ^Type,
 	value:      ^Expr,
 }
 
@@ -306,7 +321,7 @@ parse_decl :: proc(p: ^Parser, allocator := context.allocator) -> (decl: ^Expr, 
 
 	value := parse_expression(p, 0, allocator) or_return
 
-	return new_const(ident, value, offset, allocator), true
+	return new_const(ident, nil, value, offset, allocator), true
 }
 
 parse_program :: proc(p: ^Parser, allocator := context.allocator) -> (program: ^Program, ok: bool) {
@@ -355,14 +370,17 @@ new_ident :: proc(name: tok.Identifier, offset: int, allocator := context.alloca
 }
 
 new_unary :: proc(operator: UnaryOperator, operand: ^Expr, offset: int, allocator := context.allocator) -> ^Expr {
+	if operand == nil do return nil
 	return new_expr(Unary { node = Node { offset = offset }, operator = operator, operand = operand }, allocator)
 }
 
 new_binary :: proc(operator: BinaryOperator, lhs: ^Expr, rhs: ^Expr, offset: int, allocator := context.allocator) -> ^Expr {
+	if lhs == nil || rhs == nil do return nil
 	return new_expr(Binary { node = Node { offset = offset }, lhs = lhs, rhs = rhs, operator = operator }, allocator)
 }
 
 new_assign :: proc(name: tok.Identifier, value: ^Expr, offset: int, allocator := context.allocator) -> ^Expr {
+	if value == nil do return nil
 	return new_expr(Assign { node = Node { offset = offset }, name = name, value = value }, allocator)
 }
 
@@ -374,10 +392,12 @@ new_block :: proc(body: [dynamic]^Expr, offset: int, allocator := context.alloca
 	return new_expr(Block { node = Node { offset = offset }, body = body }, allocator)
 }
 
-new_const :: proc(name: tok.Identifier, value: ^Expr, offset: int, allocator := context.allocator) -> ^Expr {
-	return new_expr(Const { node = Node { offset = offset }, name = name, value = value }, allocator)
+new_const :: proc(name: tok.Identifier, type: ^Type, value: ^Expr, offset: int, allocator := context.allocator) -> ^Expr {
+	if value == nil do return nil
+	return new_expr(Const { node = Node { offset = offset }, name = name, type = type, value = value }, allocator)
 }
 
 new_proc :: proc(name: tok.Identifier, body: ^Block, offset: int, allocator := context.allocator) -> ^Expr {
+	if body == nil do return nil
 	return new_expr(Proc { node = Node { offset = offset }, name = name, body = body }, allocator)
 }
