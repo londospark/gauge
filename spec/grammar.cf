@@ -1,0 +1,66 @@
+-- ============================================================================
+-- gauge — grammar in LBNF (BNF Converter / bnfc)
+-- ============================================================================
+-- Labelled rules define both the concrete and the abstract syntax (each label
+-- becomes a syntax-tree constructor). Deferred rules are commented out with
+-- "-- deferred:"; they are part of the language but not yet implemented.
+-- Gauge positions are byte offsets; the generated front ends report
+-- line/column, which is an implementation detail.
+
+-- --- Lexical structure ------------------------------------------------------
+
+comment "//" ;
+
+token Ident   (lower | upper | '_') (lower | upper | digit | '_')* ;
+token GNumber (digit)+ ('.' (digit)+)? ;
+
+-- `proc` is a hard keyword in the implementation. In LBNF a word becomes
+-- reserved only by appearing as a terminal in some rule, so `proc` is
+-- reserved by the (deferred) procedure rule below.
+
+-- --- Program ----------------------------------------------------------------
+
+Program. Program ::= [Decl] ;
+
+-- --- Declarations -----------------------------------------------------------
+
+DeclInferred. Decl ::= Ident ":" ":" Expr ;
+DeclTyped.    Decl ::= Ident ":" Type ":" Expr ;
+
+-- deferred: DeclProc.  Decl ::= Ident ":" ":" "proc" "(" ")" Block ;
+-- deferred: DeclVar.   Decl ::= Ident ":=" Expr ;
+-- deferred: DeclVarT.  Decl ::= Ident ":" Type "=" Expr ;
+
+-- --- Types ------------------------------------------------------------------
+
+PointerType. Type ::= "^" Type ;
+TypeName.    Type ::= Ident ;
+
+-- --- Expressions ------------------------------------------------------------
+-- Precedence via indexed categories (the `coercions` macro generates the
+-- level transitions and the parenthesisation rule):
+--   Expr1  additive          (+ -)     binding power (10,11)
+--   Expr2  multiplicative    (* /)     binding power (20,21)
+--   Expr3  unary minus                 operand floor 25
+--   Expr4  primary (atoms, groups)
+
+EAdd.   Expr1 ::= Expr1 "+" Expr2 ;
+ESub.   Expr1 ::= Expr1 "-" Expr2 ;
+EMul.   Expr2 ::= Expr2 "*" Expr3 ;
+EDiv.   Expr2 ::= Expr2 "/" Expr3 ;
+ENeg.   Expr3 ::= "-" Expr3 ;
+ENum.   Expr4 ::= GNumber ;
+EStr.   Expr4 ::= String ;
+EIdent. Expr4 ::= Ident ;
+
+coercions Expr 4 ;
+
+-- deferred: ECall.   Expr4 ::= Ident "(" [Expr] ")" ;
+-- deferred: EUnit.   Expr4 ::= "(" ")" ;
+-- deferred: EAssign. Expr  ::= Expr "=" Expr ;       -- right-assoc, (2,1)
+
+-- --- Deferred structural rules ----------------------------------------------
+
+-- deferred: Block. Block ::= "{" [Expr] "}" ;
+
+entrypoints Program ;

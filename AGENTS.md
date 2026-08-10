@@ -15,6 +15,7 @@ All tools live in the project's devenv shell — there is nothing installed ad-h
 
 - **Run the tests before every commit and push.** `devenv shell --quiet odin test lexer/` and `devenv shell --quiet odin test parser/` must pass; suites live next to their packages (`lexer/lexer_test.odin`, `parser/parser_test.odin`).
 - **Scan for `@Note` before every commit.** Grep the code for `@Note` and review each one — confirm it's a deliberate design decision or flag it for action. Once a note is reviewed, mark it with a `// @Review:` resolution line so it's visibly settled; reviewed notes don't need re-reviewing on future commits.
+- **Keep `spec/grammar.cf` and `spec/language.md` in sync before every commit.** Any change to lexer or parser behaviour — tokens, precedence, grammar, diagnostics, invariants — must be reflected in the spec, and the spec change lands in the same commit as the code it describes. An out-of-date spec is a broken signal, and the maintainer treats it as such.
 - When lexer behaviour changes, update the expected tokens in `lexer/lexer_test.odin` — offsets included.
 - Keep the Sublime build systems (`gauge.sublime-project`) and `.project.gf` in sync with any command or debugger changes.
 - Comments explain **why**, never restate the code.
