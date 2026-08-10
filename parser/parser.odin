@@ -375,10 +375,47 @@ parse_program :: proc(p: ^Parser, allocator: mem.Allocator) -> (program: ^Progra
 	return program, true
 }
 
-parse :: proc(tokens: []tok.Token, allocator: mem.Allocator) -> (program: ^Program, ok: bool, err: string) {
+parse :: proc(token_list: []tok.Token, allocator: mem.Allocator) -> (program: ^Program, ok: bool, err: string) {
+	tokens := zoning_pre_parse(token_list, allocator)
 	p := Parser { tokens = tokens }
 	program, ok = parse_program(&p, allocator)
 	return program, ok, p.err
+}
+
+zoning_pre_parse :: proc(tokens: []tok.Token, allocator: mem.Allocator) -> []tok.Token {
+	paren_depth := 0
+
+	// @Note: we know we're allocating enough here (or more than enough)
+	//        so the dynamic is just for convenience and to save using
+	//        read and write indices.
+	// @Review: resolved — capacity is len(tokens) and the output can only
+	//          shrink (NewLines are dropped), so no reallocation ever
+	//          happens; the pre-sized dynamic is deliberate.
+	result := make([dynamic]tok.Token, 0, len(tokens), allocator)
+	for token in tokens {
+		simple, is_simple := token.value.(tok.SimpleToken)
+
+		if !is_simple {
+			append(&result, token)
+			continue
+		}
+
+		#partial switch simple {
+		case .LParen:
+			paren_depth += 1
+			append(&result, token)
+
+		case .RParen:
+			if paren_depth > 0 do paren_depth -= 1
+			append(&result, token)
+
+		case .NewLine:
+			if paren_depth <= 0 do append(&result, token)
+
+		case: append(&result, token)
+		}
+	}
+	return result[:]
 }
 
 // --- node construction ---

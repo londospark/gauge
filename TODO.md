@@ -19,10 +19,6 @@ lives in `spec/` — this file tracks *status* only.
 Deferred language features mirror `spec/language.md` §10; recorded design
 decisions live in §11.
 
-- **Settle the multi-line expression decision** — three options, a
-  tentative recommendation, and the deciding question are recorded in
-  `spec/language.md` §11.16. Decide before the blocks slice lands: the
-  newline model is shared.
 - **Calls and assignment** — `f(x)` and `x = expr` have binding-power rows
   but no `parse_infix` arms; `parse_args` is a `todo` stub. Multi-line
   argument lists depend on the §11.16 answer.
@@ -85,7 +81,8 @@ decisions live in §11.
 
 ## In progress
 
-*Empty — last through the points: unary plus (`b0da8d8`).*
+*Empty — last through the points: unary plus (`b0da8d8`); the §11.16
+multi-line decision lands with the paren-zone pre-pass in this commit.*
 
 ## Done
 
@@ -110,3 +107,12 @@ decisions live in §11.
   numbers have one home); `to_unary_operator` mirrors
   `to_binary_operator`; four forcing tests pin the shapes. Committed
   `b0da8d8`.
+- **Multi-line expressions settled (§11.16)** — paren-zone continuation
+  adopted and implemented as `zoning_pre_parse`, a token-filtering pre-pass
+  at the head of `parse`: NewLines inside parens are dropped before the
+  parser runs, the depth clamps at 0 (a stray `)` poisons nothing), braces
+  are never zones, and the lexer and parser are untouched. The deciding
+  question — is `x :: 4 + 2` newline `+ 3` legal without parens? — answers
+  no. The OCaml-ward future path (trailing-operator continuation only, a
+  meaning-preserving relaxation) and the lesson are recorded in §11.16, and
+  the end-to-end `integration/` suite pins the pipeline.

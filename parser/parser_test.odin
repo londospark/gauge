@@ -21,6 +21,149 @@ destroy_test_arena :: proc(user_data: rawptr) {
 	free(arena)
 }
 
+// --- assertion helpers -------------------------------------------------
+//
+// Each helper asserts the expected node and hands the test whatever it
+// needs next, so assertions read top-down instead of nesting four levels
+// of #partial switch deep. On a mismatch the helper fails the test and
+// returns zero values; the calls after it fail too, cascading noise — but
+// the first message names the real problem.
+//
+// The `_at` variants also pin the node's byte offset, for tests where the
+// offset is the point.
+
+expect_decls :: proc(t: ^testing.T, program: ^Program, count: int) {
+	testing.expectf(t, len(program.decls) == count, "want %d declaration(s), got %d", count, len(program.decls))
+}
+
+expect_const :: proc(t: ^testing.T, decl: ^Expr, name: tok.Identifier) -> ^Expr {
+	#partial switch d in decl^ {
+	case Const:
+		testing.expectf(t, d.name == name, "want const %q, got %q", name, d.name)
+		return d.value
+	case:
+		testing.expectf(t, false, "want a const named %q", name)
+	}
+	return nil
+}
+
+expect_binary :: proc(t: ^testing.T, expr: ^Expr, operator: BinaryOperator) -> (lhs: ^Expr, rhs: ^Expr) {
+	#partial switch v in expr^ {
+	case Binary:
+		testing.expectf(t, v.operator == operator, "want binary %v, got %v", operator, v.operator)
+		return v.lhs, v.rhs
+	case:
+		testing.expectf(t, false, "want a binary %v", operator)
+	}
+	return nil, nil
+}
+
+expect_binary_at :: proc(t: ^testing.T, expr: ^Expr, operator: BinaryOperator, offset: int) -> (lhs: ^Expr, rhs: ^Expr) {
+	lhs, rhs = expect_binary(t, expr, operator)
+	#partial switch v in expr^ {
+	case Binary:
+		testing.expectf(t, v.offset == offset, "want %v at byte %d, got %d", operator, offset, v.offset)
+	}
+	return lhs, rhs
+}
+
+expect_number :: proc(t: ^testing.T, expr: ^Expr, value: tok.Number) {
+	#partial switch v in expr^ {
+	case Number:
+		testing.expectf(t, v.value == value, "want number %q, got %q", value, v.value)
+	case:
+		testing.expectf(t, false, "want a number %q", value)
+	}
+}
+
+expect_string :: proc(t: ^testing.T, expr: ^Expr, value: tok.StringLiteral) {
+	#partial switch v in expr^ {
+	case String:
+		testing.expectf(t, v.value == value, "want string %q, got %q", value, v.value)
+	case:
+		testing.expectf(t, false, "want a string literal")
+	}
+}
+
+expect_ident :: proc(t: ^testing.T, expr: ^Expr, name: tok.Identifier) {
+	#partial switch v in expr^ {
+	case Ident:
+		testing.expectf(t, v.name == name, "want identifier %q, got %q", name, v.name)
+	case:
+		testing.expectf(t, false, "want an identifier %q", name)
+	}
+}
+
+expect_unary :: proc(t: ^testing.T, expr: ^Expr, operator: UnaryOperator) -> ^Expr {
+	#partial switch v in expr^ {
+	case Unary:
+		testing.expectf(t, v.operator == operator, "want unary %v, got %v", operator, v.operator)
+		return v.operand
+	case:
+		testing.expectf(t, false, "want a unary %v", operator)
+	}
+	return nil
+}
+
+expect_assign :: proc(t: ^testing.T, expr: ^Expr, name: tok.Identifier) -> ^Expr {
+	#partial switch v in expr^ {
+	case Assign:
+		testing.expectf(t, v.name == name, "want assignment to %q, got %q", name, v.name)
+		return v.value
+	case:
+		testing.expectf(t, false, "want an assignment to %q", name)
+	}
+	return nil
+}
+
+expect_call_at :: proc(t: ^testing.T, expr: ^Expr, name: tok.Identifier, offset: int) -> []^Expr {
+	#partial switch v in expr^ {
+	case Call:
+		testing.expectf(t, v.name == name, "want call to %q, got %q", name, v.name)
+		testing.expectf(t, v.offset == offset, "want Call at byte %d, got %d", offset, v.offset)
+		return v.args[:]
+	case:
+		testing.expectf(t, false, "want a call to %q", name)
+	}
+	return nil
+}
+
+expect_proc :: proc(t: ^testing.T, decl: ^Expr, name: tok.Identifier) -> ^Block {
+	#partial switch d in decl^ {
+	case Proc:
+		testing.expectf(t, d.name == name, "want procedure %q, got %q", name, d.name)
+		return d.body
+	case:
+		testing.expectf(t, false, "want a procedure named %q", name)
+	}
+	return nil
+}
+
+expect_block :: proc(t: ^testing.T, block: ^Block, count: int) -> []^Expr {
+	testing.expectf(t, len(block.body) == count, "want %d body expression(s), got %d", count, len(block.body))
+	return block.body[:]
+}
+
+expect_type_name :: proc(t: ^testing.T, ty: ^Type, name: tok.Identifier) {
+	#partial switch v in ty^ {
+	case TypeName:
+		testing.expectf(t, v.name == name, "want type %q, got %q", name, v.name)
+	case:
+		testing.expectf(t, false, "want a type name %q", name)
+	}
+}
+
+expect_type_pointer :: proc(t: ^testing.T, ty: ^Type, offset: int) -> ^Type {
+	#partial switch v in ty^ {
+	case TypePointer:
+		testing.expectf(t, v.offset == offset, "want pointer at byte %d, got %d", offset, v.offset)
+		return v.pointee
+	case:
+		testing.expectf(t, false, "want a pointer type")
+	}
+	return nil
+}
+
 @(test)
 test_parse_const_number :: proc(t: ^testing.T) {
 	tokens := []tok.Token{
@@ -37,23 +180,8 @@ test_parse_const_number :: proc(t: ^testing.T) {
 		return
 	}
 
-	testing.expectf(t, len(program.decls) == 1, "want 1 declaration, got %d", len(program.decls))
-	if len(program.decls) != 1 {
-		return
-	}
-
-	#partial switch d in program.decls[0]^ {
-	case Const:
-		testing.expectf(t, d.name == "x", "want constant 'x', got %q", d.name)
-		#partial switch v in d.value^ {
-		case Number:
-			testing.expectf(t, v.value == "42", "want number 42, got %q", v.value)
-		case:
-			testing.expect(t, false, "constant value should be a number literal")
-		}
-	case:
-		testing.expect(t, false, "first declaration should be a constant")
-	}
+	expect_decls(t, program, 1)
+	expect_number(t, expect_const(t, program.decls[0], "x"), "42")
 }
 
 @(test)
@@ -72,23 +200,8 @@ test_parse_const_string :: proc(t: ^testing.T) {
 		return
 	}
 
-	testing.expectf(t, len(program.decls) == 1, "want 1 declaration, got %d", len(program.decls))
-	if len(program.decls) != 1 {
-		return
-	}
-
-	#partial switch d in program.decls[0]^ {
-	case Const:
-		testing.expectf(t, d.name == "greeting", "want constant 'greeting', got %q", d.name)
-		#partial switch v in d.value^ {
-		case String:
-			testing.expectf(t, v.value == "hellope", "want string \"hellope\", got %q", v.value)
-		case:
-			testing.expect(t, false, "constant value should be a string literal")
-		}
-	case:
-		testing.expect(t, false, "first declaration should be a constant")
-	}
+	expect_decls(t, program, 1)
+	expect_string(t, expect_const(t, program.decls[0], "greeting"), "hellope")
 }
 
 // @(test) DISABLED — proc-dispatch not yet implemented. Re-enable by
@@ -113,22 +226,16 @@ test_parse_empty_proc :: proc(t: ^testing.T) {
 		return
 	}
 
-	testing.expectf(t, len(program.decls) == 1, "want 1 declaration, got %d", len(program.decls))
-	if len(program.decls) != 1 {
-		return
-	}
-
-	#partial switch d in program.decls[0]^ {
-	case Proc:
-		testing.expectf(t, d.name == "main", "want procedure 'main', got %q", d.name)
-		testing.expectf(t, len(d.body.body) == 0, "want an empty body, got %d expressions", len(d.body.body))
-	case:
-		testing.expect(t, false, "first declaration should be a procedure")
-	}
+	expect_decls(t, program, 1)
+	expect_block(t, expect_proc(t, program.decls[0], "main"), 0)
 }
 
-// @(test) DISABLED — proc-dispatch not yet implemented. Re-enable by
-// uncommenting the @(test) attribute when parse_decl grows the proc path.
+// @(test) DISABLED — needs two things: proc dispatch (parse_decl) and the
+// Equals infix arm (assignment is deferred to the calls/assignment card).
+// The body's `answer = 40 + 2` must become an Assign; until the Equals arm
+// lands, re-enabling this test panics — to_binary_operator has no .Equals
+// arm. test_parse_empty_proc and test_parse_multiline_group_inside_block
+// cover the blocks slice without it.
 test_parse_proc_body :: proc(t: ^testing.T) {
 	tokens := []tok.Token{
 		{offset = 0, value = tok.Identifier("main")},
@@ -155,27 +262,9 @@ test_parse_proc_body :: proc(t: ^testing.T) {
 		return
 	}
 
-	testing.expectf(t, len(program.decls) == 1, "want 1 declaration, got %d", len(program.decls))
-	if len(program.decls) != 1 {
-		return
-	}
-
-	#partial switch d in program.decls[0]^ {
-	case Proc:
-		testing.expectf(t, d.name == "main", "want procedure 'main', got %q", d.name)
-		testing.expectf(t, len(d.body.body) == 1, "want 1 body expression, got %d", len(d.body.body))
-		if len(d.body.body) != 1 {
-			return
-		}
-		#partial switch first in d.body.body[0]^ {
-		case Assign:
-			testing.expectf(t, first.name == "answer", "want assignment to 'answer', got %q", first.name)
-		case:
-			testing.expect(t, false, "body expression should be an assignment")
-		}
-	case:
-		testing.expect(t, false, "first declaration should be a procedure")
-	}
+	expect_decls(t, program, 1)
+	body := expect_block(t, expect_proc(t, program.decls[0], "main"), 1)
+	expect_assign(t, body[0], "answer")
 }
 
 @(test)
@@ -201,48 +290,11 @@ test_parse_const_arithmetic_reference :: proc(t: ^testing.T) {
 		return
 	}
 
-	testing.expectf(t, len(program.decls) == 2, "want 2 declarations, got %d", len(program.decls))
-	if len(program.decls) != 2 {
-		return
-	}
-
-	#partial switch d in program.decls[0]^ {
-	case Const:
-		testing.expectf(t, d.name == "KiB", "want constant 'KiB', got %q", d.name)
-		#partial switch v in d.value^ {
-		case Number:
-			testing.expectf(t, v.value == "1024", "want KiB value 1024, got %q", v.value)
-		case:
-			testing.expect(t, false, "KiB value should be a number literal")
-		}
-	case:
-		testing.expect(t, false, "first declaration should be a constant")
-	}
-
-	#partial switch d in program.decls[1]^ {
-	case Const:
-		testing.expectf(t, d.name == "MiB", "want constant 'MiB', got %q", d.name)
-		#partial switch v in d.value^ {
-		case Binary:
-			testing.expectf(t, v.operator == .Multiply, "want Multiply, got %v", v.operator)
-			#partial switch lhs in v.lhs^ {
-			case Number:
-				testing.expectf(t, lhs.value == "1024", "want lhs number 1024, got %q", lhs.value)
-			case:
-				testing.expect(t, false, "MiB lhs should be a number literal")
-			}
-			#partial switch rhs in v.rhs^ {
-			case Ident:
-				testing.expectf(t, rhs.name == "KiB", "want rhs reference to KiB, got %q", rhs.name)
-			case:
-				testing.expect(t, false, "MiB rhs should be a reference to KiB")
-			}
-		case:
-			testing.expect(t, false, "MiB value should be a multiplication")
-		}
-	case:
-		testing.expect(t, false, "second declaration should be a constant")
-	}
+	expect_decls(t, program, 2)
+	expect_number(t, expect_const(t, program.decls[0], "KiB"), "1024")
+	kib_lhs, kib_rhs := expect_binary(t, expect_const(t, program.decls[1], "MiB"), .Multiply)
+	expect_number(t, kib_lhs, "1024")
+	expect_ident(t, kib_rhs, "KiB")
 }
 
 @(test)
@@ -266,35 +318,10 @@ test_parse_precedence :: proc(t: ^testing.T) {
 		return
 	}
 
-	testing.expectf(t, len(program.decls) == 1, "want 1 declaration, got %d", len(program.decls))
-	if len(program.decls) != 1 {
-		return
-	}
-
-	#partial switch d in program.decls[0]^ {
-	case Const:
-		#partial switch v in d.value^ {
-		case Binary:
-			// Root is `+`: lhs=1, rhs=(2 * 3).
-			testing.expectf(t, v.operator == .Add, "want root Add, got %v", v.operator)
-			#partial switch lhs in v.lhs^ {
-			case Number:
-				testing.expectf(t, lhs.value == "1", "want lhs 1, got %q", lhs.value)
-			case:
-				testing.expect(t, false, "root lhs should be 1")
-			}
-			#partial switch rhs in v.rhs^ {
-			case Binary:
-				testing.expectf(t, rhs.operator == .Multiply, "want rhs Multiply, got %v", rhs.operator)
-			case:
-				testing.expect(t, false, "root rhs should be the 2 * 3 multiplication")
-			}
-		case:
-			testing.expect(t, false, "value should be a binary expression")
-		}
-	case:
-		testing.expect(t, false, "declaration should be a constant")
-	}
+	expect_decls(t, program, 1)
+	root_lhs, root_rhs := expect_binary(t, expect_const(t, program.decls[0], "x"), .Add)
+	expect_number(t, root_lhs, "1")
+	expect_binary(t, root_rhs, .Multiply)
 }
 
 @(test)
@@ -321,35 +348,10 @@ test_parse_bracketed_const :: proc(t: ^testing.T) {
 		return
 	}
 
-	testing.expectf(t, len(program.decls) == 1, "want 1 declaration, got %d", len(program.decls))
-	if len(program.decls) != 1 {
-		return
-	}
-
-	#partial switch d in program.decls[0]^ {
-	case Const:
-		#partial switch v in d.value^ {
-		case Binary:
-			// Root is `*`: lhs=(4 + 2), rhs=3. The group is one atom.
-			testing.expectf(t, v.operator == .Multiply, "want root Multiply, got %v", v.operator)
-			#partial switch lhs in v.lhs^ {
-			case Binary:
-				testing.expectf(t, lhs.operator == .Add, "want grouped Add, got %v", lhs.operator)
-			case:
-				testing.expect(t, false, "root lhs should be the grouped (4 + 2)")
-			}
-			#partial switch rhs in v.rhs^ {
-			case Number:
-				testing.expectf(t, rhs.value == "3", "want rhs 3, got %q", rhs.value)
-			case:
-				testing.expect(t, false, "root rhs should be 3")
-			}
-		case:
-			testing.expect(t, false, "value should be a binary expression")
-		}
-	case:
-		testing.expect(t, false, "declaration should be a constant")
-	}
+	expect_decls(t, program, 1)
+	root_lhs, root_rhs := expect_binary(t, expect_const(t, program.decls[0], "x"), .Multiply)
+	expect_binary(t, root_lhs, .Add)
+	expect_number(t, root_rhs, "3")
 }
 
 @(test)
@@ -391,28 +393,8 @@ test_parse_unary_minus :: proc(t: ^testing.T) {
 		return
 	}
 
-	testing.expectf(t, len(program.decls) == 1, "want 1 declaration, got %d", len(program.decls))
-	if len(program.decls) != 1 {
-		return
-	}
-
-	#partial switch d in program.decls[0]^ {
-	case Const:
-		#partial switch v in d.value^ {
-		case Unary:
-			testing.expectf(t, v.operator == .Minus, "want unary Minus, got %v", v.operator)
-			#partial switch operand in v.operand^ {
-			case Number:
-				testing.expectf(t, operand.value == "5", "want operand 5, got %q", operand.value)
-			case:
-				testing.expect(t, false, "unary operand should be a number literal")
-			}
-		case:
-			testing.expect(t, false, "value should be a Unary expression")
-		}
-	case:
-		testing.expect(t, false, "declaration should be a constant")
-	}
+	expect_decls(t, program, 1)
+	expect_number(t, expect_unary(t, expect_const(t, program.decls[0], "x"), .Minus), "5")
 }
 
 @(test)
@@ -436,29 +418,9 @@ test_parse_unary_minus_binds_tighter_than_plus :: proc(t: ^testing.T) {
 		return
 	}
 
-	testing.expectf(t, len(program.decls) == 1, "want 1 declaration, got %d", len(program.decls))
-	if len(program.decls) != 1 {
-		return
-	}
-
-	#partial switch d in program.decls[0]^ {
-	case Const:
-		#partial switch v in d.value^ {
-		case Binary:
-			// Root is `+`, so the unary grabbed only the 2.
-			testing.expectf(t, v.operator == .Add, "want root Add, got %v", v.operator)
-			#partial switch lhs in v.lhs^ {
-			case Unary:
-				testing.expectf(t, lhs.operator == .Minus, "want lhs unary Minus, got %v", lhs.operator)
-			case:
-				testing.expect(t, false, "root lhs should be the Unary(-2)")
-			}
-		case:
-			testing.expect(t, false, "value should be a binary expression")
-		}
-	case:
-		testing.expect(t, false, "declaration should be a constant")
-	}
+	expect_decls(t, program, 1)
+	root_lhs, _ := expect_binary(t, expect_const(t, program.decls[0], "x"), .Add)
+	expect_unary(t, root_lhs, .Minus)
 }
 
 @(test)
@@ -482,34 +444,9 @@ test_parse_double_unary_minus :: proc(t: ^testing.T) {
 		return
 	}
 
-	testing.expectf(t, len(program.decls) == 1, "want 1 declaration, got %d", len(program.decls))
-	if len(program.decls) != 1 {
-		return
-	}
-
-	#partial switch d in program.decls[0]^ {
-	case Const:
-		#partial switch v in d.value^ {
-		case Unary:
-			testing.expectf(t, v.operator == .Minus, "want outer unary Minus, got %v", v.operator)
-			#partial switch inner in v.operand^ {
-			case Unary:
-				testing.expectf(t, inner.operator == .Minus, "want inner unary Minus, got %v", inner.operator)
-				#partial switch num in inner.operand^ {
-				case Number:
-					testing.expectf(t, num.value == "5", "want innermost 5, got %q", num.value)
-				case:
-					testing.expect(t, false, "innermost should be the number 5")
-				}
-			case:
-				testing.expect(t, false, "outer operand should be another Unary")
-			}
-		case:
-			testing.expect(t, false, "value should be a Unary expression")
-		}
-	case:
-		testing.expect(t, false, "declaration should be a constant")
-	}
+	expect_decls(t, program, 1)
+	inner := expect_unary(t, expect_const(t, program.decls[0], "x"), .Minus)
+	expect_number(t, expect_unary(t, inner, .Minus), "5")
 }
 
 @(test)
@@ -533,35 +470,9 @@ test_parse_unary_minus_binds_tighter_than_star :: proc(t: ^testing.T) {
 		return
 	}
 
-	testing.expectf(t, len(program.decls) == 1, "want 1 declaration, got %d", len(program.decls))
-	if len(program.decls) != 1 {
-		return
-	}
-
-	#partial switch d in program.decls[0]^ {
-	case Const:
-		#partial switch v in d.value^ {
-		case Binary:
-			// Root is `*`, so the unary bound first: lhs = Unary(-2).
-			testing.expectf(t, v.operator == .Multiply, "want root Multiply, got %v", v.operator)
-			#partial switch lhs in v.lhs^ {
-			case Unary:
-				testing.expectf(t, lhs.operator == .Minus, "want lhs unary Minus, got %v", lhs.operator)
-				#partial switch operand in lhs.operand^ {
-				case Number:
-					testing.expectf(t, operand.value == "2", "want unary operand 2, got %q", operand.value)
-				case:
-					testing.expect(t, false, "unary operand should be 2")
-				}
-			case:
-				testing.expect(t, false, "root lhs should be the Unary(-2)")
-			}
-		case:
-			testing.expect(t, false, "value should be a multiplication")
-		}
-	case:
-		testing.expect(t, false, "declaration should be a constant")
-	}
+	expect_decls(t, program, 1)
+	root_lhs, _ := expect_binary(t, expect_const(t, program.decls[0], "x"), .Multiply)
+	expect_number(t, expect_unary(t, root_lhs, .Minus), "2")
 }
 
 @(test)
@@ -625,28 +536,8 @@ test_parse_unary_plus :: proc(t: ^testing.T) {
 		return
 	}
 
-	testing.expectf(t, len(program.decls) == 1, "want 1 declaration, got %d", len(program.decls))
-	if len(program.decls) != 1 {
-		return
-	}
-
-	#partial switch d in program.decls[0]^ {
-	case Const:
-		#partial switch v in d.value^ {
-		case Unary:
-			testing.expectf(t, v.operator == .Plus, "want unary Plus, got %v", v.operator)
-			#partial switch operand in v.operand^ {
-			case Number:
-				testing.expectf(t, operand.value == "5", "want operand 5, got %q", operand.value)
-			case:
-				testing.expect(t, false, "unary operand should be a number literal")
-			}
-		case:
-			testing.expect(t, false, "value should be a Unary expression")
-		}
-	case:
-		testing.expect(t, false, "declaration should be a constant")
-	}
+	expect_decls(t, program, 1)
+	expect_number(t, expect_unary(t, expect_const(t, program.decls[0], "x"), .Plus), "5")
 }
 
 @(test)
@@ -670,29 +561,9 @@ test_parse_unary_plus_binds_tighter_than_plus :: proc(t: ^testing.T) {
 		return
 	}
 
-	testing.expectf(t, len(program.decls) == 1, "want 1 declaration, got %d", len(program.decls))
-	if len(program.decls) != 1 {
-		return
-	}
-
-	#partial switch d in program.decls[0]^ {
-	case Const:
-		#partial switch v in d.value^ {
-		case Binary:
-			// Root is `+`, so the unary grabbed only the 2.
-			testing.expectf(t, v.operator == .Add, "want root Add, got %v", v.operator)
-			#partial switch lhs in v.lhs^ {
-			case Unary:
-				testing.expectf(t, lhs.operator == .Plus, "want lhs unary Plus, got %v", lhs.operator)
-			case:
-				testing.expect(t, false, "root lhs should be the Unary(+2)")
-			}
-		case:
-			testing.expect(t, false, "value should be a binary expression")
-		}
-	case:
-		testing.expect(t, false, "declaration should be a constant")
-	}
+	expect_decls(t, program, 1)
+	root_lhs, _ := expect_binary(t, expect_const(t, program.decls[0], "x"), .Add)
+	expect_unary(t, root_lhs, .Plus)
 }
 
 @(test)
@@ -717,35 +588,9 @@ test_parse_unary_plus_binds_tighter_than_star :: proc(t: ^testing.T) {
 		return
 	}
 
-	testing.expectf(t, len(program.decls) == 1, "want 1 declaration, got %d", len(program.decls))
-	if len(program.decls) != 1 {
-		return
-	}
-
-	#partial switch d in program.decls[0]^ {
-	case Const:
-		#partial switch v in d.value^ {
-		case Binary:
-			// Root is `*`, so the unary bound first: lhs = Unary(+2).
-			testing.expectf(t, v.operator == .Multiply, "want root Multiply, got %v", v.operator)
-			#partial switch lhs in v.lhs^ {
-			case Unary:
-				testing.expectf(t, lhs.operator == .Plus, "want lhs unary Plus, got %v", lhs.operator)
-				#partial switch operand in lhs.operand^ {
-				case Number:
-					testing.expectf(t, operand.value == "2", "want unary operand 2, got %q", operand.value)
-				case:
-					testing.expect(t, false, "unary operand should be 2")
-				}
-			case:
-				testing.expect(t, false, "root lhs should be the Unary(+2)")
-			}
-		case:
-			testing.expect(t, false, "value should be a multiplication")
-		}
-	case:
-		testing.expect(t, false, "declaration should be a constant")
-	}
+	expect_decls(t, program, 1)
+	root_lhs, _ := expect_binary(t, expect_const(t, program.decls[0], "x"), .Multiply)
+	expect_number(t, expect_unary(t, root_lhs, .Plus), "2")
 }
 
 @(test)
@@ -768,34 +613,9 @@ test_parse_unary_plus_minus_mix :: proc(t: ^testing.T) {
 		return
 	}
 
-	testing.expectf(t, len(program.decls) == 1, "want 1 declaration, got %d", len(program.decls))
-	if len(program.decls) != 1 {
-		return
-	}
-
-	#partial switch d in program.decls[0]^ {
-	case Const:
-		#partial switch v in d.value^ {
-		case Unary:
-			testing.expectf(t, v.operator == .Plus, "want outer unary Plus, got %v", v.operator)
-			#partial switch inner in v.operand^ {
-			case Unary:
-				testing.expectf(t, inner.operator == .Minus, "want inner unary Minus, got %v", inner.operator)
-				#partial switch num in inner.operand^ {
-				case Number:
-					testing.expectf(t, num.value == "5", "want innermost 5, got %q", num.value)
-				case:
-					testing.expect(t, false, "innermost should be the number 5")
-				}
-			case:
-				testing.expect(t, false, "outer operand should be a Unary")
-			}
-		case:
-			testing.expect(t, false, "value should be a Unary expression")
-		}
-	case:
-		testing.expect(t, false, "declaration should be a constant")
-	}
+	expect_decls(t, program, 1)
+	inner := expect_unary(t, expect_const(t, program.decls[0], "x"), .Plus)
+	expect_number(t, expect_unary(t, inner, .Minus), "5")
 }
 
 @(test)
@@ -891,30 +711,11 @@ test_parse_typed_const_pointer :: proc(t: ^testing.T) {
 		return
 	}
 
-	testing.expectf(t, len(program.decls) == 1, "want 1 declaration, got %d", len(program.decls))
-	if len(program.decls) != 1 {
-		return
-	}
-
+	expect_decls(t, program, 1)
 	#partial switch d in program.decls[0]^ {
 	case Const:
-		#partial switch ty in d.type^ {
-		case TypePointer:
-			#partial switch pointee in ty.pointee^ {
-			case TypeName:
-				testing.expectf(t, pointee.name == "int", "want pointee 'int', got %q", pointee.name)
-			case:
-				testing.expect(t, false, "pointee should be a type name")
-			}
-		case:
-			testing.expect(t, false, "type should be a pointer")
-		}
-		#partial switch v in d.value^ {
-		case Number:
-			testing.expectf(t, v.value == "5", "want value 5, got %q", v.value)
-		case:
-			testing.expect(t, false, "value should be a number literal")
-		}
+		expect_type_name(t, expect_type_pointer(t, d.type, 4), "int")
+		expect_number(t, d.value, "5")
 	case:
 		testing.expect(t, false, "declaration should be a constant")
 	}
@@ -941,29 +742,10 @@ test_parse_typed_const_double_pointer :: proc(t: ^testing.T) {
 		return
 	}
 
-	testing.expectf(t, len(program.decls) == 1, "want 1 declaration, got %d", len(program.decls))
-	if len(program.decls) != 1 {
-		return
-	}
-
+	expect_decls(t, program, 1)
 	#partial switch d in program.decls[0]^ {
 	case Const:
-		#partial switch ty in d.type^ {
-		case TypePointer:
-			#partial switch pointee in ty.pointee^ {
-			case TypePointer:
-				#partial switch inner in pointee.pointee^ {
-				case TypeName:
-					testing.expectf(t, inner.name == "int", "want innermost 'int', got %q", inner.name)
-				case:
-					testing.expect(t, false, "innermost should be a type name")
-				}
-			case:
-				testing.expect(t, false, "outer pointee should be another pointer")
-			}
-		case:
-			testing.expect(t, false, "type should be a double pointer")
-		}
+		expect_type_name(t, expect_type_pointer(t, expect_type_pointer(t, d.type, 4), 5), "int")
 	case:
 		testing.expect(t, false, "declaration should be a constant")
 	}
@@ -988,25 +770,11 @@ test_parse_typed_const_name :: proc(t: ^testing.T) {
 		return
 	}
 
-	testing.expectf(t, len(program.decls) == 1, "want 1 declaration, got %d", len(program.decls))
-	if len(program.decls) != 1 {
-		return
-	}
-
+	expect_decls(t, program, 1)
 	#partial switch d in program.decls[0]^ {
 	case Const:
-		#partial switch ty in d.type^ {
-		case TypeName:
-			testing.expectf(t, ty.name == "int", "want type name 'int', got %q", ty.name)
-		case:
-			testing.expect(t, false, "type should be a bare name")
-		}
-		#partial switch v in d.value^ {
-		case Number:
-			testing.expectf(t, v.value == "5", "want value 5, got %q", v.value)
-		case:
-			testing.expect(t, false, "value should be a number literal")
-		}
+		expect_type_name(t, d.type, "int")
+		expect_number(t, d.value, "5")
 	case:
 		testing.expect(t, false, "declaration should be a constant")
 	}
@@ -1189,18 +957,7 @@ test_parse_type_pointer_offsets :: proc(t: ^testing.T) {
 
 	#partial switch d in program.decls[0]^ {
 	case Const:
-		#partial switch ty in d.type^ {
-		case TypePointer:
-			testing.expectf(t, ty.offset == 4, "outer TypePointer offset want 4 (the first ^), got %d", ty.offset)
-			#partial switch inner in ty.pointee^ {
-			case TypePointer:
-				testing.expectf(t, inner.offset == 5, "inner TypePointer offset want 5 (the second ^), got %d", inner.offset)
-			case:
-				testing.expect(t, false, "inner should be a pointer")
-			}
-		case:
-			testing.expect(t, false, "type should be a double pointer")
-		}
+		expect_type_pointer(t, expect_type_pointer(t, d.type, 4), 5)
 	case:
 		testing.expect(t, false, "declaration should be a constant")
 	}
@@ -1249,4 +1006,618 @@ test_allocator_discipline :: proc(t: ^testing.T) {
 		"allocator discipline broken: %d allocation(s) fell through to context.allocator",
 		len(tracker.allocation_map))
 	_ = program
+}
+
+// --- Paren-zone newlines (§11.16) --------------------------------------
+//
+// The multi-line decision, pinned: newlines are insignificant inside ( ),
+// significant everywhere else. The deciding question — may an expression
+// continue across a newline without parens? — answers no.
+//
+// Motivating shapes:
+//
+//   x :: (4 + 2 +        — one expression, continuing inside the zone:
+//           3 + 5)         (((4 + 2) + 3) + 5)
+//
+//   x :: (4 + 2          — same zone, but the operator sits on the next
+//            * 3)          line: 4 + (2 * 3). The zone absorbs the
+//                          newline at the *operator* position too, not
+//                          just after an operator.
+//
+//   x :: 4 + 2           — NOT one expression: the newline ends it, and
+//   + 3                    `+ 3` cannot even start a declaration. Error.
+//
+//   x :: 4 +             — still an error outside a zone: the dangling +
+//   2                      has no right operand. The trailing-operator
+//                          invariant survives the decision unchanged.
+//
+//   x :: (4 + 2)         — the zone closes; newline significance returns.
+//   y :: 5                  Two declarations.
+//
+//   x :: (4 + 2          — the swallow hazard, pinned at the boundary: an
+//   y :: 5                 unclosed zone eats the next declaration, so
+//                          this must stay an error. Recovery's job later
+//                          is to resync on the matching closer.
+//
+// Block bodies are newline-separated and never zones — that is what keeps
+// `;` out of the language. A group inside a block is contained by its
+// parens and must not disturb the statement separation around it.
+//
+// The zone rule lives in zoning_pre_parse, the pre-pass at the head of
+// parse: NewLines at paren depth > 0 are dropped before the parser runs,
+// so the parser never sees a newline inside a zone. The depth clamps at
+// 0, braces are never zones, and the parser itself is untouched.
+
+@(test)
+test_parse_multiline_group_continues :: proc(t: ^testing.T) {
+	// x :: (4 + 2 +\n3 + 5) — the operator sits on the first line, the
+	// operand on the second; the zone absorbs the newline between them.
+	// Must parse as (((4 + 2) + 3) + 5). RED: the Pratt loop stops at a
+	// NewLine today, so the group never finds its `)`.
+	tokens := []tok.Token{
+		{offset = 0, value = tok.Identifier("x")},
+		{offset = 2, value = tok.SimpleToken.Colon},
+		{offset = 3, value = tok.SimpleToken.Colon},
+		{offset = 5, value = tok.SimpleToken.LParen},
+		{offset = 6, value = tok.Number("4")},
+		{offset = 8, value = tok.SimpleToken.Plus},
+		{offset = 10, value = tok.Number("2")},
+		{offset = 12, value = tok.SimpleToken.Plus},
+		{offset = 13, value = tok.SimpleToken.NewLine},
+		{offset = 14, value = tok.Number("3")},
+		{offset = 16, value = tok.SimpleToken.Plus},
+		{offset = 18, value = tok.Number("5")},
+		{offset = 19, value = tok.SimpleToken.RParen},
+		{offset = 20, value = tok.SimpleToken.EOF},
+	}
+
+	program, ok, err := parse(tokens, new_test_arena(t))
+	testing.expectf(t, ok, "parse failed: %s", err)
+	if !ok {
+		return
+	}
+
+	expect_decls(t, program, 1)
+	value := expect_const(t, program.decls[0], "x")
+	root_lhs, root_rhs := expect_binary_at(t, value, .Add, 16)
+	middle_lhs, middle_rhs := expect_binary_at(t, root_lhs, .Add, 12)
+	inner_lhs, inner_rhs := expect_binary_at(t, middle_lhs, .Add, 8)
+	expect_number(t, inner_lhs, "4")
+	expect_number(t, inner_rhs, "2")
+	expect_number(t, middle_rhs, "3")
+	expect_number(t, root_rhs, "5")
+}
+
+@(test)
+test_parse_multiline_group_operator_on_next_line :: proc(t: ^testing.T) {
+	// x :: (4 + 2\n* 3) — a complete line inside the zone, then an
+	// operator starting the next. The Pratt *loop* must absorb the
+	// newline and see the `*`; without that, the group fails. RED: the
+	// loop stops at the NewLine today.
+	tokens := []tok.Token{
+		{offset = 0, value = tok.Identifier("x")},
+		{offset = 2, value = tok.SimpleToken.Colon},
+		{offset = 3, value = tok.SimpleToken.Colon},
+		{offset = 5, value = tok.SimpleToken.LParen},
+		{offset = 6, value = tok.Number("4")},
+		{offset = 8, value = tok.SimpleToken.Plus},
+		{offset = 10, value = tok.Number("2")},
+		{offset = 11, value = tok.SimpleToken.NewLine},
+		{offset = 12, value = tok.SimpleToken.Star},
+		{offset = 14, value = tok.Number("3")},
+		{offset = 15, value = tok.SimpleToken.RParen},
+		{offset = 16, value = tok.SimpleToken.EOF},
+	}
+
+	program, ok, err := parse(tokens, new_test_arena(t))
+	testing.expectf(t, ok, "parse failed: %s", err)
+	if !ok {
+		return
+	}
+
+	expect_decls(t, program, 1)
+	root_lhs, root_rhs := expect_binary_at(t, expect_const(t, program.decls[0], "x"), .Add, 8)
+	expect_number(t, root_lhs, "4")
+	expect_binary_at(t, root_rhs, .Multiply, 12)
+}
+
+@(test)
+test_parse_multiline_group_multiple_newlines :: proc(t: ^testing.T) {
+	// x :: (4 +\n\n2) — two newlines inside the zone: a trailing operator
+	// before them, the operand after. The operand-position site
+	// (parse_prefix) must skip both. RED: parse_prefix rejects the
+	// NewLine today.
+	tokens := []tok.Token{
+		{offset = 0, value = tok.Identifier("x")},
+		{offset = 2, value = tok.SimpleToken.Colon},
+		{offset = 3, value = tok.SimpleToken.Colon},
+		{offset = 5, value = tok.SimpleToken.LParen},
+		{offset = 6, value = tok.Number("4")},
+		{offset = 8, value = tok.SimpleToken.Plus},
+		{offset = 9, value = tok.SimpleToken.NewLine},
+		{offset = 10, value = tok.SimpleToken.NewLine},
+		{offset = 11, value = tok.Number("2")},
+		{offset = 12, value = tok.SimpleToken.RParen},
+		{offset = 13, value = tok.SimpleToken.EOF},
+	}
+
+	program, ok, err := parse(tokens, new_test_arena(t))
+	testing.expectf(t, ok, "parse failed: %s", err)
+	if !ok {
+		return
+	}
+
+	expect_decls(t, program, 1)
+	lhs, rhs := expect_binary(t, expect_const(t, program.decls[0], "x"), .Add)
+	expect_number(t, lhs, "4")
+	expect_number(t, rhs, "2")
+}
+
+@(test)
+test_parse_multiline_group_nested :: proc(t: ^testing.T) {
+	// x :: ((4 +\n2) + 3) — zones nest; each group pushes and pops its
+	// own depth, so the inner newline is absorbed and the outer one
+	// (after the inner `)`) still ends the outer expression. RED today.
+	tokens := []tok.Token{
+		{offset = 0, value = tok.Identifier("x")},
+		{offset = 2, value = tok.SimpleToken.Colon},
+		{offset = 3, value = tok.SimpleToken.Colon},
+		{offset = 5, value = tok.SimpleToken.LParen},
+		{offset = 6, value = tok.SimpleToken.LParen},
+		{offset = 7, value = tok.Number("4")},
+		{offset = 9, value = tok.SimpleToken.Plus},
+		{offset = 10, value = tok.SimpleToken.NewLine},
+		{offset = 11, value = tok.Number("2")},
+		{offset = 12, value = tok.SimpleToken.RParen},
+		{offset = 14, value = tok.SimpleToken.Plus},
+		{offset = 16, value = tok.Number("3")},
+		{offset = 17, value = tok.SimpleToken.RParen},
+		{offset = 18, value = tok.SimpleToken.EOF},
+	}
+
+	program, ok, err := parse(tokens, new_test_arena(t))
+	testing.expectf(t, ok, "parse failed: %s", err)
+	if !ok {
+		return
+	}
+
+	expect_decls(t, program, 1)
+	root_lhs, root_rhs := expect_binary_at(t, expect_const(t, program.decls[0], "x"), .Add, 14)
+	expect_binary_at(t, root_lhs, .Add, 9)
+	expect_number(t, root_rhs, "3")
+}
+
+@(test)
+test_parse_multiline_group_then_newline_ends_expression :: proc(t: ^testing.T) {
+	// x :: (4 + 2)\ny :: 5 — the zone closes at the `)`, depth returns
+	// to zero, and the newline ends the declaration again. This pins
+	// that zone state does not leak past the closer. Green today and
+	// green after: it is the guardrail for the depth discipline.
+	tokens := []tok.Token{
+		{offset = 0, value = tok.Identifier("x")},
+		{offset = 2, value = tok.SimpleToken.Colon},
+		{offset = 3, value = tok.SimpleToken.Colon},
+		{offset = 5, value = tok.SimpleToken.LParen},
+		{offset = 6, value = tok.Number("4")},
+		{offset = 8, value = tok.SimpleToken.Plus},
+		{offset = 10, value = tok.Number("2")},
+		{offset = 11, value = tok.SimpleToken.RParen},
+		{offset = 12, value = tok.SimpleToken.NewLine},
+		{offset = 13, value = tok.Identifier("y")},
+		{offset = 15, value = tok.SimpleToken.Colon},
+		{offset = 16, value = tok.SimpleToken.Colon},
+		{offset = 18, value = tok.Number("5")},
+		{offset = 19, value = tok.SimpleToken.EOF},
+	}
+
+	program, ok, err := parse(tokens, new_test_arena(t))
+	testing.expectf(t, ok, "parse failed: %s", err)
+	if !ok {
+		return
+	}
+
+	expect_decls(t, program, 2)
+	expect_binary(t, expect_const(t, program.decls[0], "x"), .Add)
+	expect_number(t, expect_const(t, program.decls[1], "y"), "5")
+}
+
+@(test)
+test_parse_rejects_parenless_continuation :: proc(t: ^testing.T) {
+	// x :: 4 + 2\n+ 3 — the deciding question, answered no: outside a
+	// zone the newline ends the expression, and `+ 3` cannot start a
+	// declaration. Green today and green after: the decision must not
+	// accidentally relax this.
+	tokens := []tok.Token{
+		{offset = 0, value = tok.Identifier("x")},
+		{offset = 2, value = tok.SimpleToken.Colon},
+		{offset = 3, value = tok.SimpleToken.Colon},
+		{offset = 5, value = tok.Number("4")},
+		{offset = 7, value = tok.SimpleToken.Plus},
+		{offset = 9, value = tok.Number("2")},
+		{offset = 10, value = tok.SimpleToken.NewLine},
+		{offset = 11, value = tok.SimpleToken.Plus},
+		{offset = 13, value = tok.Number("3")},
+		{offset = 14, value = tok.SimpleToken.EOF},
+	}
+
+	program, ok, _ := parse(tokens, new_test_arena(t))
+	testing.expectf(t, !ok, "want a parse error for a paren-less continuation, but parse succeeded")
+	_ = program
+}
+
+@(test)
+test_parse_rejects_trailing_operator_at_newline :: proc(t: ^testing.T) {
+	// x :: 4 +\n2 — the trailing-operator invariant outside a zone,
+	// with a full operand waiting on the next line. Without parens the
+	// newline ends the expression, so the dangling `+` still has no
+	// right operand to grab. The zone rule must not absorb this.
+	tokens := []tok.Token{
+		{offset = 0, value = tok.Identifier("x")},
+		{offset = 2, value = tok.SimpleToken.Colon},
+		{offset = 3, value = tok.SimpleToken.Colon},
+		{offset = 5, value = tok.Number("4")},
+		{offset = 7, value = tok.SimpleToken.Plus},
+		{offset = 8, value = tok.SimpleToken.NewLine},
+		{offset = 9, value = tok.Number("2")},
+		{offset = 10, value = tok.SimpleToken.EOF},
+	}
+
+	program, ok, _ := parse(tokens, new_test_arena(t))
+	testing.expectf(t, !ok, "want a parse error for a trailing operator at a newline, but parse succeeded")
+	_ = program
+}
+
+@(test)
+test_parse_rejects_unclosed_zone_swallowing_decl :: proc(t: ^testing.T) {
+	// x :: (4 + 2\ny :: 5 — the swallow hazard, pinned at the boundary.
+	// The unclosed `(` eats the following declaration, so this must stay
+	// an error both today (newline ends the inner expression, no `)`
+	// follows) and after the zone rule (the zone absorbs the newline,
+	// parses `y`, and still never finds its `)`). When recovery lands,
+	// declaration start must resync even inside a zone; this test is
+	// the guardrail for that too.
+	tokens := []tok.Token{
+		{offset = 0, value = tok.Identifier("x")},
+		{offset = 2, value = tok.SimpleToken.Colon},
+		{offset = 3, value = tok.SimpleToken.Colon},
+		{offset = 5, value = tok.SimpleToken.LParen},
+		{offset = 6, value = tok.Number("4")},
+		{offset = 8, value = tok.SimpleToken.Plus},
+		{offset = 10, value = tok.Number("2")},
+		{offset = 11, value = tok.SimpleToken.NewLine},
+		{offset = 12, value = tok.Identifier("y")},
+		{offset = 14, value = tok.SimpleToken.Colon},
+		{offset = 15, value = tok.SimpleToken.Colon},
+		{offset = 17, value = tok.Number("5")},
+		{offset = 18, value = tok.SimpleToken.EOF},
+	}
+
+	program, ok, _ := parse(tokens, new_test_arena(t))
+	testing.expectf(t, !ok, "want a parse error for an unclosed zone, but parse succeeded")
+	_ = program
+}
+
+// --- Zone-depth discipline ---------------------------------------------
+//
+// The counter has two jobs: absorb newlines while it is > 0, and be
+// *inert* at 0. These tests pin the edges of that contract — the closer
+// boundaries, the depth-0 behaviour, and deep nesting. Three are RED
+// against the committed baseline; three are pins (green both before and
+// after, guarding the depth-0 side).
+
+@(test)
+test_parse_multiline_group_newline_before_closer :: proc(t: ^testing.T) {
+	// x :: (4 + 2\n) — a newline directly before the `)`. The closer
+	// must still be found: the zone absorbs the newline, then ends.
+	// RED against baseline: the loop stops at the NewLine and the
+	// group never reaches its `)`.
+	tokens := []tok.Token{
+		{offset = 0, value = tok.Identifier("x")},
+		{offset = 2, value = tok.SimpleToken.Colon},
+		{offset = 3, value = tok.SimpleToken.Colon},
+		{offset = 5, value = tok.SimpleToken.LParen},
+		{offset = 6, value = tok.Number("4")},
+		{offset = 8, value = tok.SimpleToken.Plus},
+		{offset = 10, value = tok.Number("2")},
+		{offset = 11, value = tok.SimpleToken.NewLine},
+		{offset = 12, value = tok.SimpleToken.RParen},
+		{offset = 13, value = tok.SimpleToken.EOF},
+	}
+
+	program, ok, err := parse(tokens, new_test_arena(t))
+	testing.expectf(t, ok, "parse failed: %s", err)
+	if !ok {
+		return
+	}
+
+	expect_decls(t, program, 1)
+	expect_binary(t, expect_const(t, program.decls[0], "x"), .Add)
+}
+
+@(test)
+test_parse_multiline_group_triple_nested :: proc(t: ^testing.T) {
+	// x :: (((4 +\n2))) — three zones deep, one newline at the bottom.
+	// Every push must be matched by a pop: the inner newline is
+	// absorbed, and all three closers resolve. RED against baseline.
+	tokens := []tok.Token{
+		{offset = 0, value = tok.Identifier("x")},
+		{offset = 2, value = tok.SimpleToken.Colon},
+		{offset = 3, value = tok.SimpleToken.Colon},
+		{offset = 5, value = tok.SimpleToken.LParen},
+		{offset = 6, value = tok.SimpleToken.LParen},
+		{offset = 7, value = tok.SimpleToken.LParen},
+		{offset = 8, value = tok.Number("4")},
+		{offset = 10, value = tok.SimpleToken.Plus},
+		{offset = 11, value = tok.SimpleToken.NewLine},
+		{offset = 12, value = tok.Number("2")},
+		{offset = 13, value = tok.SimpleToken.RParen},
+		{offset = 14, value = tok.SimpleToken.RParen},
+		{offset = 15, value = tok.SimpleToken.RParen},
+		{offset = 16, value = tok.SimpleToken.EOF},
+	}
+
+	program, ok, err := parse(tokens, new_test_arena(t))
+	testing.expectf(t, ok, "parse failed: %s", err)
+	if !ok {
+		return
+	}
+
+	expect_decls(t, program, 1)
+	lhs, rhs := expect_binary(t, expect_const(t, program.decls[0], "x"), .Add)
+	expect_number(t, lhs, "4")
+	expect_number(t, rhs, "2")
+}
+
+@(test)
+test_parse_multiline_group_unary_across_newline :: proc(t: ^testing.T) {
+	// x :: (-\n5) — the unary arm also rides the zone: the operand may
+	// start on the next line. RED against baseline: parse_prefix meets
+	// the NewLine at the operand position and refuses it.
+	tokens := []tok.Token{
+		{offset = 0, value = tok.Identifier("x")},
+		{offset = 2, value = tok.SimpleToken.Colon},
+		{offset = 3, value = tok.SimpleToken.Colon},
+		{offset = 5, value = tok.SimpleToken.LParen},
+		{offset = 6, value = tok.SimpleToken.Minus},
+		{offset = 7, value = tok.SimpleToken.NewLine},
+		{offset = 8, value = tok.Number("5")},
+		{offset = 9, value = tok.SimpleToken.RParen},
+		{offset = 10, value = tok.SimpleToken.EOF},
+	}
+
+	program, ok, err := parse(tokens, new_test_arena(t))
+	testing.expectf(t, ok, "parse failed: %s", err)
+	if !ok {
+		return
+	}
+
+	expect_decls(t, program, 1)
+	expect_number(t, expect_unary(t, expect_const(t, program.decls[0], "x"), .Minus), "5")
+}
+
+@(test)
+test_parse_rejects_unary_at_newline_at_depth_zero :: proc(t: ^testing.T) {
+	// x :: -\n5 — the depth-0 twin of the test above: without the zone,
+	// the newline still ends the expression and the unary `-` is left
+	// dangling with no operand. The zone is what licenses continuation;
+	// depth 0 must not quietly grow that licence.
+	tokens := []tok.Token{
+		{offset = 0, value = tok.Identifier("x")},
+		{offset = 2, value = tok.SimpleToken.Colon},
+		{offset = 3, value = tok.SimpleToken.Colon},
+		{offset = 5, value = tok.SimpleToken.Minus},
+		{offset = 6, value = tok.SimpleToken.NewLine},
+		{offset = 7, value = tok.Number("5")},
+		{offset = 8, value = tok.SimpleToken.EOF},
+	}
+
+	program, ok, _ := parse(tokens, new_test_arena(t))
+	testing.expectf(t, !ok, "want a parse error for a dangling unary at a newline, but parse succeeded")
+	_ = program
+}
+
+@(test)
+test_parse_zone_closes_and_binary_continues_same_line :: proc(t: ^testing.T) {
+	// x :: (4) + 2 — the counter must return to 0 the moment the `)`
+	// matches, not lazily: a same-line binary operator after the closer
+	// still binds at depth 0. If the pop were delayed, this would break.
+	tokens := []tok.Token{
+		{offset = 0, value = tok.Identifier("x")},
+		{offset = 2, value = tok.SimpleToken.Colon},
+		{offset = 3, value = tok.SimpleToken.Colon},
+		{offset = 5, value = tok.SimpleToken.LParen},
+		{offset = 6, value = tok.Number("4")},
+		{offset = 7, value = tok.SimpleToken.RParen},
+		{offset = 9, value = tok.SimpleToken.Plus},
+		{offset = 11, value = tok.Number("2")},
+		{offset = 12, value = tok.SimpleToken.EOF},
+	}
+
+	program, ok, err := parse(tokens, new_test_arena(t))
+	testing.expectf(t, ok, "parse failed: %s", err)
+	if !ok {
+		return
+	}
+
+	expect_decls(t, program, 1)
+	root_lhs, root_rhs := expect_binary_at(t, expect_const(t, program.decls[0], "x"), .Add, 9)
+	expect_number(t, root_lhs, "4")
+	expect_number(t, root_rhs, "2")
+}
+
+@(test)
+test_parse_rejects_stray_closer_after_zone :: proc(t: ^testing.T) {
+	// x :: (4)) — the group closes at the first `)`, dropping the depth
+	// to 0; the second `)` is then a stray closer at depth 0 and must
+	// be rejected. The counter must not swallow extra closers on its way
+	// down — a pop matches a push, one for one.
+	tokens := []tok.Token{
+		{offset = 0, value = tok.Identifier("x")},
+		{offset = 2, value = tok.SimpleToken.Colon},
+		{offset = 3, value = tok.SimpleToken.Colon},
+		{offset = 5, value = tok.SimpleToken.LParen},
+		{offset = 6, value = tok.Number("4")},
+		{offset = 7, value = tok.SimpleToken.RParen},
+		{offset = 8, value = tok.SimpleToken.RParen},
+		{offset = 9, value = tok.SimpleToken.EOF},
+	}
+
+	program, ok, _ := parse(tokens, new_test_arena(t))
+	testing.expectf(t, !ok, "want a parse error for a stray closer, but parse succeeded")
+	_ = program
+}
+
+// --- Pre-pass unit tests ------------------------------------------------
+//
+// The pre-pass is the whole §11.16 decision in one function, so it earns
+// direct tests on its own contract — the two failures that would be
+// silent at the parse level.
+
+@(test)
+test_zoning_pre_parse_braces_are_not_zones :: proc(t: ^testing.T) {
+	// { 4\n2 } — braces must never touch the counter: the NewLine inside
+	// the block survives. If the pre-pass treated { } as a zone, block
+	// statements would silently merge into one expression — statement
+	// separation lost without a single error. This pins the asymmetry.
+	tokens := []tok.Token{
+		{offset = 0, value = tok.SimpleToken.LSquirly},
+		{offset = 2, value = tok.Number("4")},
+		{offset = 4, value = tok.SimpleToken.NewLine},
+		{offset = 6, value = tok.Number("2")},
+		{offset = 8, value = tok.SimpleToken.RSquirly},
+		{offset = 9, value = tok.SimpleToken.EOF},
+	}
+
+	filtered := zoning_pre_parse(tokens, new_test_arena(t))
+	testing.expectf(t, len(filtered) == 6, "want all 6 tokens kept, got %d", len(filtered))
+	if len(filtered) != 6 {
+		return
+	}
+
+	if simple, ok := filtered[2].value.(tok.SimpleToken); ok {
+		testing.expectf(t, simple == .NewLine, "want the NewLine to survive, got %v", simple)
+	} else {
+		testing.expect(t, false, "want a SimpleToken at index 2")
+	}
+	testing.expectf(t, filtered[2].offset == 4, "want NewLine offset 4, got %d", filtered[2].offset)
+}
+
+@(test)
+test_zoning_pre_parse_stray_closer_does_not_poison :: proc(t: ^testing.T) {
+	// ) \n ( 4 +\n2 ) — a stray closer at depth 0 must be clamped, not
+	// decremented into the negative. The NewLine right after it stays
+	// (depth 0), but the NewLine inside the following zone is still
+	// dropped. Without the clamp the interior NewLine survives too, and
+	// a perfectly balanced zone expression breaks — the poisoning the
+	// one-line guard prevents.
+	tokens := []tok.Token{
+		{offset = 0, value = tok.SimpleToken.RParen},
+		{offset = 1, value = tok.SimpleToken.NewLine},
+		{offset = 3, value = tok.SimpleToken.LParen},
+		{offset = 4, value = tok.Number("4")},
+		{offset = 6, value = tok.SimpleToken.Plus},
+		{offset = 8, value = tok.SimpleToken.NewLine},
+		{offset = 10, value = tok.Number("2")},
+		{offset = 11, value = tok.SimpleToken.RParen},
+		{offset = 13, value = tok.SimpleToken.EOF},
+	}
+
+	filtered := zoning_pre_parse(tokens, new_test_arena(t))
+	testing.expectf(t, len(filtered) == 8, "want 8 tokens, got %d", len(filtered))
+	if len(filtered) != 8 {
+		return
+	}
+
+	// The stray closer and the depth-0 newline survive...
+	if simple, ok := filtered[1].value.(tok.SimpleToken); ok {
+		testing.expectf(t, simple == .NewLine, "want the depth-0 NewLine to survive, got %v", simple)
+	} else {
+		testing.expect(t, false, "want a SimpleToken at index 1")
+	}
+	// ...and the interior newline is gone: the operand `2` is compacted
+	// to index 5, still carrying its original offset.
+	testing.expectf(t, filtered[5].offset == 10, "want `2` compacted to index 5 at offset 10, got offset %d", filtered[5].offset)
+}
+
+// @(test) DISABLED — blocks not yet implemented. Re-enable by uncommenting
+// the @(test) attribute when parse_decl grows the proc path and parse_block
+// lands. This pins the zone-inside-block contract: the group is contained
+// by its parens and must not disturb statement separation around it — if
+// zone depth leaked past `)`, the two statements would merge into one.
+test_parse_multiline_group_inside_block :: proc(t: ^testing.T) {
+	// main :: proc() {\n(1 +\n2)\n(3 +\n4)\n} — two statements, each a
+	// multi-line group. The block body stays newline-separated (braces
+	// are not zones); the groups absorb their own newlines.
+	tokens := []tok.Token{
+		{offset = 0, value = tok.Identifier("main")},
+		{offset = 5, value = tok.SimpleToken.Colon},
+		{offset = 6, value = tok.SimpleToken.Colon},
+		{offset = 8, value = tok.Keyword.Proc},
+		{offset = 12, value = tok.SimpleToken.LParen},
+		{offset = 13, value = tok.SimpleToken.RParen},
+		{offset = 15, value = tok.SimpleToken.LSquirly},
+		{offset = 16, value = tok.SimpleToken.NewLine},
+		{offset = 17, value = tok.SimpleToken.LParen},
+		{offset = 18, value = tok.Number("1")},
+		{offset = 20, value = tok.SimpleToken.Plus},
+		{offset = 21, value = tok.SimpleToken.NewLine},
+		{offset = 22, value = tok.Number("2")},
+		{offset = 23, value = tok.SimpleToken.RParen},
+		{offset = 24, value = tok.SimpleToken.NewLine},
+		{offset = 25, value = tok.SimpleToken.LParen},
+		{offset = 26, value = tok.Number("3")},
+		{offset = 28, value = tok.SimpleToken.Plus},
+		{offset = 29, value = tok.SimpleToken.NewLine},
+		{offset = 30, value = tok.Number("4")},
+		{offset = 31, value = tok.SimpleToken.RParen},
+		{offset = 32, value = tok.SimpleToken.NewLine},
+		{offset = 33, value = tok.SimpleToken.RSquirly},
+		{offset = 34, value = tok.SimpleToken.EOF},
+	}
+
+	program, ok, err := parse(tokens, new_test_arena(t))
+	testing.expectf(t, ok, "parse failed: %s", err)
+	if !ok {
+		return
+	}
+
+	expect_decls(t, program, 1)
+	body := expect_block(t, expect_proc(t, program.decls[0], "main"), 2)
+	expect_binary_at(t, body[0], .Add, 20)
+	expect_binary_at(t, body[1], .Add, 28)
+}
+
+// @(test) DISABLED — calls not yet implemented. Re-enable by uncommenting
+// the @(test) attribute when parse_args and the call infix arm land. This
+// pins §11.16's payoff: call parens are zones, so a multi-line argument
+// list parses with no special machinery — the same zone depth the grouping
+// arm pushes.
+test_parse_multiline_args :: proc(t: ^testing.T) {
+	// x :: f(a,\nb) — the comma's newline is absorbed inside the call's
+	// paren zone. The Call node owns the args; the `(` offset 7 is the
+	// creating token per the AST convention.
+	tokens := []tok.Token{
+		{offset = 0, value = tok.Identifier("x")},
+		{offset = 2, value = tok.SimpleToken.Colon},
+		{offset = 3, value = tok.SimpleToken.Colon},
+		{offset = 5, value = tok.Identifier("f")},
+		{offset = 7, value = tok.SimpleToken.LParen},
+		{offset = 8, value = tok.Identifier("a")},
+		{offset = 9, value = tok.SimpleToken.Comma},
+		{offset = 10, value = tok.SimpleToken.NewLine},
+		{offset = 11, value = tok.Identifier("b")},
+		{offset = 12, value = tok.SimpleToken.RParen},
+		{offset = 13, value = tok.SimpleToken.EOF},
+	}
+
+	program, ok, err := parse(tokens, new_test_arena(t))
+	testing.expectf(t, ok, "parse failed: %s", err)
+	if !ok {
+		return
+	}
+
+	expect_decls(t, program, 1)
+	args := expect_call_at(t, expect_const(t, program.decls[0], "x"), "f", 7)
+	expect_ident(t, args[0], "a")
+	expect_ident(t, args[1], "b")
 }

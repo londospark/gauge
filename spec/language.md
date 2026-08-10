@@ -412,14 +412,14 @@ when the continuation predicate gained `_`, the start switch still lacked a
 identifier test caught it — one rule, two places, and the tests are the
 only thing keeping them in lockstep.
 
-### 11.16 Multi-line expressions: decision deferred
+### 11.16 Multi-line expressions: paren-zone continuation
 
-**Status.** Undecided — this entry records the fork, not a choice. The
+**Status.** Decided — paren-zone continuation (option 2 below), adopted. The
 question surfaced from `x :: (4 + 2 +` newline `3 + 5)` failing today: the
 Pratt loop stops at a `NewLine` because no `NewLine` has binding power, so an
-expression is single-line *by accident, not by rule*. When a choice is made,
-append the decision and the lesson to this entry; the options stay — the
-history is the point.
+expression was single-line *by accident, not by rule* — a default, not a
+choice. The options below stay as the historical record; the decision, the
+future path, and the lesson follow at the end of the entry.
 
 **The options.**
 
@@ -449,9 +449,10 @@ call slice multi-line argument lists for free.
 
 **Recovery interaction.** Multi-line expressions change the resync set, not
 the resync rule: inside an open zone, resync on the matching closer;
-otherwise on declaration start (`Ident` `:` lookahead). One bit of state
-(zone depth) tells recovery which. Unclosed-zone swallowing is the hazard;
-declaration start must stay a hard sync even inside a zone.
+otherwise on declaration start (`Ident` `:` lookahead). The zone-depth bit
+lives in the pre-pass, not the parser — recovery re-derives it from the raw
+token stream. Unclosed-zone swallowing is the hazard; declaration start must
+stay a hard sync even inside a zone.
 
 **The deciding question.** May an expression continue across a newline
 *without* parens when the previous line ends complete — is `x :: 4 + 2`
@@ -459,6 +460,47 @@ newline `+ 3` legal? Python says no; Haskell says yes. The answer picks the
 model. The lexer is untouched either way — `NewLine` is already a token;
 this is purely the parser's "does a newline end this expression?" judgement
 (see AGENTS.md).
+
+**Decision.** Paren-zone continuation — newlines are insignificant inside
+`( )` (and, later, `[ ]`); outside them a newline ends the expression. The
+deciding question answers **no**: `x :: 4 + 2` newline `+ 3` is an error.
+`{ }` does *not* become a zone, so blocks stay newline-separated and `;` stays
+out of the language. The trailing-operator invariant survives unchanged:
+`x :: 4 +` newline `2` is still an error, because outside a zone the newline
+ends the expression and the dangling `+` grabs no right operand.
+
+**Implementation.** The decision lands as `zoning_pre_parse`, a token-
+filtering pre-pass at the head of `parse`: `NewLine` tokens are dropped
+while its paren depth is > 0, the depth clamps at 0 (a stray `)` poisons
+nothing), braces never touch the counter, and offsets ride on the tokens so
+dropping a newline disturbs nothing. The parser itself is the untouched
+single-line parser — newline significance is decided entirely before it
+runs, and the lexer is untouched as promised above.
+
+**Future path — OCaml-ward, trailing-operator continuation only.** If gauge
+ever relaxes toward incompleteness continuation, the intended variant
+continues an expression *only when the current line ends incomplete*: a
+trailing operator absorbs the newline and the next line becomes its operand,
+with no parens required (`x :: 4 +` newline `2` becomes `4 + 2`). A complete
+line never triggers continuation — there is no lookahead past the newline —
+so `x :: 4 + 2` newline `- 3` stays two statements (the second a bare unary
+expression) and the deciding question still answers **no**. Because the only
+newly-legal program is the trailing-operator case (an error today), the move
+is a strict relaxation that changes the meaning of no currently-legal
+program. The *full* incompleteness model — Haskell/OCaml's rule that a
+complete line before a leading operator also continues — is deliberately not
+the target: there, `4 + 2` newline `- 3` silently merges into `4 + 2 - 3`,
+turning a bare unary statement into a subtraction. A meaning change that
+needs no parens is the failure mode to refuse.
+
+**Lesson.** The pre-decision behaviour was a parser *default* dressed as a
+rule: no `NewLine` had binding power, so the language was single-line by
+accident. A default is a language decision and deserves an explicit ruling.
+The sequel: when weighing a relaxation, enumerate what becomes legal. A
+relaxation that only turns errors into programs is safe; a relaxation that
+re-parses currently-legal programs is a breaking change in disguise. The
+trailing-operator-only variant is the former; the full incompleteness rule is
+the latter.
 
 ### 11.17 Strings are pointer + length, never C strings
 

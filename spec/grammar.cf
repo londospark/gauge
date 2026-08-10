@@ -7,6 +7,15 @@
 -- Gauge positions are byte offsets; the generated front ends report
 -- line/column, which is an implementation detail.
 
+-- Newlines are tokens in the implementation (`NewLine`) but appear in no
+-- rule here: LBNF treats whitespace as insignificant, and gauge's newline
+-- model is enforced outside the grammar. Inside `( )` a newline is
+-- insignificant — the parser's `zoning_pre_parse` pass drops NewLine tokens
+-- while its paren depth is > 0 — and outside parens a newline ends the
+-- expression and separates declarations. Braces are never zones: `{ }`
+-- stays newline-separated, which is what keeps `;` out of the language.
+-- See spec/language.md §11.16.
+
 -- --- Lexical structure ------------------------------------------------------
 
 comment "//" ;
