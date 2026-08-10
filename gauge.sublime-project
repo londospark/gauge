@@ -44,7 +44,7 @@
 		{
 			"name": "Odin: Test",
 			"working_dir": "${project_path}",
-			"cmd": ["bash", "-c", "devenv shell --quiet odin test lexer/ && devenv shell --quiet odin test parser/"],
+			"cmd": ["bash", "-c", "devenv shell --quiet odin test lexer/ && devenv shell --quiet odin test parser/ && devenv shell --quiet odin test integration/"],
 			"file_regex": "^(...*?)\\(([0-9]+):([0-9]+)\\) (?:Error|Warning|Note): (.*)$",
 		}
 	],

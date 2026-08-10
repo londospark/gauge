@@ -39,6 +39,10 @@ jobs:
         if: always()
         run: odin test parser/ -define:ODIN_TEST_JSON_REPORT=parser.json
 
+      - name: Test integration
+        if: always()
+        run: odin test integration/ -define:ODIN_TEST_JSON_REPORT=integration.json
+
       - name: Convert test reports to JUnit
         if: always()
         run: |

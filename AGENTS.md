@@ -6,14 +6,14 @@ Guidance for AI agents and contributors working on gauge.
 
 All tools live in the project's devenv shell — there is nothing installed ad-hoc:
 
-- Tests: `devenv shell --quiet odin test lexer/` and `devenv shell --quiet odin test parser/` (one package per invocation — `odin test` takes a single directory)
+- Tests: `devenv shell --quiet odin test lexer/`, `devenv shell --quiet odin test parser/`, and `devenv shell --quiet odin test integration/` (one package per invocation — `odin test` takes a single directory)
 - Run the demo: `devenv shell --quiet odin run .`
 - Build: `devenv shell --quiet odin build .`
 - Debug build: `devenv shell --quiet odin build . -debug`, then `devenv shell --quiet gf2 ./gauge`
 
 ## Workflow
 
-- **Run the tests before every commit and push.** `devenv shell --quiet odin test lexer/` and `devenv shell --quiet odin test parser/` must pass; suites live next to their packages (`lexer/lexer_test.odin`, `parser/parser_test.odin`).
+- **Run the tests before every commit and push.** `devenv shell --quiet odin test lexer/`, `devenv shell --quiet odin test parser/`, and `devenv shell --quiet odin test integration/` must pass; suites live next to their packages (`lexer/lexer_test.odin`, `parser/parser_test.odin`, `integration/integration_test.odin`).
 - **Scan for `@Note` before every commit.** Grep the code for `@Note` and review each one — confirm it's a deliberate design decision or flag it for action. Once a note is reviewed, mark it with a `// @Review:` resolution line so it's visibly settled; reviewed notes don't need re-reviewing on future commits.
 - **Keep `spec/grammar.cf` and `spec/language.md` in sync before every commit.** Any change to lexer or parser behaviour — tokens, precedence, grammar, diagnostics, invariants — must be reflected in the spec, and the spec change lands in the same commit as the code it describes. An out-of-date spec is a broken signal, and the maintainer treats it as such.
   The two files have different jobs: `language.md` is the design and the
@@ -29,6 +29,7 @@ All tools live in the project's devenv shell — there is nothing installed ad-h
 
 - The name **gauge** is a railway term, and the docs lean into it: steam-train puns are **welcome and encouraged** throughout the documentation.
 - The maintainer is a member of the **Talyllyn Railway** (the world's first preserved narrow-gauge railway) — puns and references involving them are super, super welcome.
+- Spellings are **UK English** throughout — in code and comments, in the docs and the spec, and in commit messages alike: *behaviour*, *colour*, *recognised*, *initialised*, *labelled*, *cancelled* — never their US spellings.
 
 ## Environment (the flake)
 
@@ -41,7 +42,7 @@ All tools live in the project's devenv shell — there is nothing installed ad-h
 
 - Code semantics — panic-vs-error (compiler bugs vs source bugs), `(T, bool)` + `or_return` propagation, stub/`todo` conventions, `@Note`/`@Review` lifecycle — live in `docs/style_guide.md`.
 - `token.Token` is `{ offset: int, value: Value }`. Positions are **byte offsets**, never line/col.
-- Newlines are explicit `NewLine` tokens; the parser decides if one ends a statement.
+- Newlines are explicit `NewLine` tokens; the parser decides if one ends a statement — `zoning_pre_parse` drops NewLines inside paren zones before the parser runs (§11.16).
 - `peek`/`advance` return `(u8, bool)` — `false` means EOF. Never use `0` as an EOF sentinel (NUL is a valid byte).
 - In the `lexer` package: `lex_identifier`/`lex_string`/`lex_number` return `(token.Token, bool)`; `lex` returns `(tokens, ok)` and stops on the first error.
 - Line comments (`//`) are skipped by the lexer; `Slash` is only emitted when the `/` isn't followed by another `/`.
