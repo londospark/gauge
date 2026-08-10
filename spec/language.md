@@ -411,3 +411,79 @@ when the continuation predicate gained `_`, the start switch still lacked a
 `case '_':`, so `_proc` was "Unrecognised character". A comprehensive
 identifier test caught it — one rule, two places, and the tests are the
 only thing keeping them in lockstep.
+
+### 11.16 Multi-line expressions: decision deferred
+
+**Status.** Undecided — this entry records the fork, not a choice. The
+question surfaced from `x :: (4 + 2 +` newline `3 + 5)` failing today: the
+Pratt loop stops at a `NewLine` because no `NewLine` has binding power, so an
+expression is single-line *by accident, not by rule*. When a choice is made,
+append the decision and the lesson to this entry; the options stay — the
+history is the point.
+
+**The options.**
+
+1. **Status quo** — expressions are one line. Predictable, and the
+   trailing-operator invariant stays airtight. Against: long expressions and
+   `f(a,` newline `b)` argument lists are real UI-style patterns; this does
+   not age well.
+2. **Paren-zone continuation** (Python's model) — inside `( )` and `[ ]`
+   newlines are insignificant; outside them, a newline ends the expression.
+   `x :: (4 + 2 +` newline `3 + 5)` parses; the paren-less version is an
+   error. For: explicit, standard, no machinery, and the recommendation.
+   Against: an unclosed `(` swallows following declarations into the zone
+   (Python's well-known pain) unless recovery guards it.
+3. **Incompleteness continuation** (Haskell/OCaml's model) — a newline is
+   absorbed whenever the expression cannot be complete: a trailing operator
+   continues, and so does a complete line before a leading operator. For:
+   the most permissive, no parens required. Against: every syntax error
+   becomes a potential declaration-swallowing incident (`x :: 4 +` and the
+   next line is eaten as the operand) — the failure mode to refuse.
+
+**Why option 2 (tentatively).** `{ }` must *not* become zones, or block
+statements would need `;` — which gauge deliberately does not have. Option 2
+keeps blocks newline-separated and `;` out of the language, preserves the
+trailing-operator invariant (continuation requires explicit parens, so
+`test_parse_rejects_trailing_operator` survives), and gives the deferred
+call slice multi-line argument lists for free.
+
+**Recovery interaction.** Multi-line expressions change the resync set, not
+the resync rule: inside an open zone, resync on the matching closer;
+otherwise on declaration start (`Ident` `:` lookahead). One bit of state
+(zone depth) tells recovery which. Unclosed-zone swallowing is the hazard;
+declaration start must stay a hard sync even inside a zone.
+
+**The deciding question.** May an expression continue across a newline
+*without* parens when the previous line ends complete — is `x :: 4 + 2`
+newline `+ 3` legal? Python says no; Haskell says yes. The answer picks the
+model. The lexer is untouched either way — `NewLine` is already a token;
+this is purely the parser's "does a newline end this expression?" judgement
+(see AGENTS.md).
+
+### 11.17 Strings are pointer + length, never C strings
+
+**Decision.** gauge compiles to C, but gauge strings are *not* C strings. A
+string is a `(data: ^u8, len: int)` pair — pointer plus byte length, exactly
+Odin's `string` — in the language, in the AST, and in the generated C.
+NUL-termination is a conversion applied only at FFI boundaries, never a
+property of the string itself.
+
+**Why.** The same reasons Odin does it:
+
+- **Length is a fact, not a scan.** `strlen` is O(n) on every use and lies
+  about the size of anything containing a NUL byte. The pair makes length
+  O(1) and intrinsic.
+- **Slicing is free and safe.** A substring is an O(1) pointer/length
+  adjustment — no copy, no terminator surgery — and bounds are checkable
+  against the carried length.
+- **NUL is data.** A string may contain `\0`; the length says where it
+  ends. C strings make that unrepresentable.
+- **The security argument.** Buffer overruns in C are overwhelmingly
+  length-handling bugs; the pair removes the whole class at the type level.
+
+**The boundary rule** (Odin's `cstring` story): interop with a C API
+converts at the edge — append the terminator there, on the way out, and
+trust nothing C hands back without measuring it. The lexer already embodies
+the decision: `StringLiteral` values are zero-copy slices of the source
+(§3.4), so the front end was pointer + length before this entry was
+written.
