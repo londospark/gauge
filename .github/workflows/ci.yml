@@ -27,7 +27,73 @@ jobs:
         run: odin build .
 
       - name: Test lexer
-        run: odin test lexer/
+        run: |
+          set +e
+          output=$(odin test lexer/ 2>&1)
+          status=$?
+          set -e
+
+          echo "::group::odin test lexer"
+          printf '%s\n' "$output"
+          echo "::endgroup::"
+
+          result=$(printf '%s\n' "$output" | grep -E '^Finished ' | tail -1 || true)
+          failures=$(printf '%s\n' "$output" | grep -E '^[[:space:]]+- ' | sed 's/^[[:space:]]*//' || true)
+
+          if [ -n "$GITHUB_STEP_SUMMARY" ]; then
+            {
+              echo "### lexer"
+              echo "\`${result:-no summary line}\`"
+              if [ -n "$failures" ]; then
+                echo ""
+                echo '```'
+                printf '%s\n' "$failures"
+                echo '```'
+              fi
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if [ -n "$failures" ]; then
+            while IFS= read -r line; do
+              safe=${line//%/%25}
+              echo "::error::lexer: $safe"
+            done <<< "$failures"
+          fi
+
+          exit $status
 
       - name: Test parser
-        run: odin test parser/
+        run: |
+          set +e
+          output=$(odin test parser/ 2>&1)
+          status=$?
+          set -e
+
+          echo "::group::odin test parser"
+          printf '%s\n' "$output"
+          echo "::endgroup::"
+
+          result=$(printf '%s\n' "$output" | grep -E '^Finished ' | tail -1 || true)
+          failures=$(printf '%s\n' "$output" | grep -E '^[[:space:]]+- ' | sed 's/^[[:space:]]*//' || true)
+
+          if [ -n "$GITHUB_STEP_SUMMARY" ]; then
+            {
+              echo "### parser"
+              echo "\`${result:-no summary line}\`"
+              if [ -n "$failures" ]; then
+                echo ""
+                echo '```'
+                printf '%s\n' "$failures"
+                echo '```'
+              fi
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if [ -n "$failures" ]; then
+            while IFS= read -r line; do
+              safe=${line//%/%25}
+              echo "::error::parser: $safe"
+            done <<< "$failures"
+          fi
+
+          exit $status
