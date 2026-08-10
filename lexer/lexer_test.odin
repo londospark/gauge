@@ -90,6 +90,115 @@ test_lex_basics :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_lex_identifiers :: proc(t: ^testing.T) {
+	// Identifier rule: starts with a letter or underscore, then continues
+	// with letters, underscores, and digits. A digit can never start one.
+	cases := []TestCase{
+		// start: lowercase, uppercase, underscore
+		{
+			src = "a",
+			expected = []tok.Token{
+				tok.Token{offset = 0, value = tok.Identifier("a")},
+				tok.Token{offset = 1, value = tok.SimpleToken.EOF},
+			},
+		},
+		{
+			src = "A",
+			expected = []tok.Token{
+				tok.Token{offset = 0, value = tok.Identifier("A")},
+				tok.Token{offset = 1, value = tok.SimpleToken.EOF},
+			},
+		},
+		{
+			src = "_",
+			expected = []tok.Token{
+				tok.Token{offset = 0, value = tok.Identifier("_")},
+				tok.Token{offset = 1, value = tok.SimpleToken.EOF},
+			},
+		},
+		{
+			src = "_a",
+			expected = []tok.Token{
+				tok.Token{offset = 0, value = tok.Identifier("_a")},
+				tok.Token{offset = 2, value = tok.SimpleToken.EOF},
+			},
+		},
+		// continue: letters, underscores, digits in any combination
+		{
+			src = "a1",
+			expected = []tok.Token{
+				tok.Token{offset = 0, value = tok.Identifier("a1")},
+				tok.Token{offset = 2, value = tok.SimpleToken.EOF},
+			},
+		},
+		{
+			src = "a_b",
+			expected = []tok.Token{
+				tok.Token{offset = 0, value = tok.Identifier("a_b")},
+				tok.Token{offset = 3, value = tok.SimpleToken.EOF},
+			},
+		},
+		{
+			src = "abc123",
+			expected = []tok.Token{
+				tok.Token{offset = 0, value = tok.Identifier("abc123")},
+				tok.Token{offset = 6, value = tok.SimpleToken.EOF},
+			},
+		},
+		{
+			src = "KiB",
+			expected = []tok.Token{
+				tok.Token{offset = 0, value = tok.Identifier("KiB")},
+				tok.Token{offset = 3, value = tok.SimpleToken.EOF},
+			},
+		},
+		{
+			src = "foo_Bar_123",
+			expected = []tok.Token{
+				tok.Token{offset = 0, value = tok.Identifier("foo_Bar_123")},
+				tok.Token{offset = 11, value = tok.SimpleToken.EOF},
+			},
+		},
+		// keywords are exact matches only — a longer word is a plain ident
+		{
+			src = "proc123",
+			expected = []tok.Token{
+				tok.Token{offset = 0, value = tok.Identifier("proc123")},
+				tok.Token{offset = 7, value = tok.SimpleToken.EOF},
+			},
+		},
+		{
+			src = "_proc",
+			expected = []tok.Token{
+				tok.Token{offset = 0, value = tok.Identifier("_proc")},
+				tok.Token{offset = 5, value = tok.SimpleToken.EOF},
+			},
+		},
+		// boundaries: a digit cannot start an identifier
+		{
+			src = "123abc",
+			expected = []tok.Token{
+				tok.Token{offset = 0, value = tok.Number("123")},
+				tok.Token{offset = 3, value = tok.Identifier("abc")},
+				tok.Token{offset = 6, value = tok.SimpleToken.EOF},
+			},
+		},
+		{
+			src = "a 1",
+			expected = []tok.Token{
+				tok.Token{offset = 0, value = tok.Identifier("a")},
+				tok.Token{offset = 2, value = tok.Number("1")},
+				tok.Token{offset = 3, value = tok.SimpleToken.EOF},
+			},
+		},
+	}
+
+	for tc, i in cases {
+		check_case(t, tc, i)
+	}
+}
+
+@(test)
 test_lex_symbols :: proc(t: ^testing.T) {
 	cases := []TestCase{
 		{
@@ -150,14 +259,6 @@ test_lex_numbers :: proc(t: ^testing.T) {
 				tok.Token{offset = 0, value = tok.Number("12")},
 				tok.Token{offset = 2, value = tok.Identifier("a")},
 				tok.Token{offset = 3, value = tok.SimpleToken.EOF},
-			},
-		},
-		{
-			src = "abc123",
-			expected = []tok.Token{
-				tok.Token{offset = 0, value = tok.Identifier("abc")},
-				tok.Token{offset = 3, value = tok.Number("123")},
-				tok.Token{offset = 6, value = tok.SimpleToken.EOF},
 			},
 		},
 		{

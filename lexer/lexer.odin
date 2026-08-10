@@ -43,7 +43,7 @@ lex :: proc(lexer: ^Lexer, allocator := context.allocator) -> (tokens: [dynamic]
 			}
 		case '^':  append(&result, lex_single(lexer, .Hat))
 		case '\n': append(&result, lex_single(lexer, .NewLine))
-		case 'a'..='z':
+		case 'a'..='z', 'A'..='Z', '_':
 			token, _ := lex_identifier(lexer)
 			if name, is_ident := token.value.(tok.Identifier); is_ident && name == "proc" {
 				token.value = tok.Keyword.Proc
@@ -100,7 +100,7 @@ lex_identifier :: proc(lexer: ^Lexer) -> (tok.Token, bool) {
 	start := lexer.position
 	for {
 		c, ok := peek(lexer)
-		if !ok || !is_lowercase(c) do break
+		if !ok || !is_allowed_in_identifier(c) do break
 		advance(lexer)
 	}
 	return tok.Token { offset = start, value = tok.Identifier(lexer.source[start:lexer.position]) }, start != lexer.position
@@ -191,4 +191,8 @@ is_alpha :: proc(char: u8) -> bool {
 
 is_whitespace :: proc(char: u8) -> bool {
 	return char == ' ' || char == '\t' || char == '\r'
+}
+
+is_allowed_in_identifier :: proc (char: u8) -> bool {
+	return is_alpha(char) || is_digit(char) || char == '_'
 }
