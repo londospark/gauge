@@ -1,5 +1,5 @@
 [executable]
-path=gauge
+path=parser.test.bin
 arguments=
 ask_directory=1
 
@@ -12,6 +12,6 @@ argument=set breakpoint pending on
 argument=-ex
 argument=set disassembly-flavor intel
 argument=-ex
-argument=break main::main
+argument=break main
 argument=-ex
 argument=run
