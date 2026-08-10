@@ -14,13 +14,15 @@ A language with only nicer syntax isn't a reason to exist. gauge's reason
 to exist is the **declarative, scope-based resource model** — anything with a
 begin/end lifecycle (a file, a window, a layout element, a frame) is a
 first-class scoped block, and the same scope model powers immediate-mode UI
-ergonomics. That is the feature the language is built around; everything else
+ergonomics. It is the feature the language is built around; everything else
 serves it.
 
 This is what separates it from:
 
-- **Odin / C / Zig / Go** — `defer` is manual and general; nothing makes the
-  open/close *pairing* a language feature.
+- **Odin / C / Zig / Go** — `defer` is manual and general; the open/close
+  *pairing* is not a language feature. (Odin's `deferred_*` attributes come
+  closest — see [scoping.md](scoping.md); gauge's `scoped` is the block-shaped,
+  caller-gated, value-bearing refinement of that.)
 - **C++ / Rust** — RAII and ownership are type-driven and automatic; gauge's
   is block-driven and explicit.
 - **C# `using` / Python `with`** — library patterns tied to an interface
@@ -29,8 +31,11 @@ This is what separates it from:
 
 Without the scoped model, gauge is Odin with different punctuation. With
 it, resource management and immediate-mode UIs become native grammar instead of
-hand-rolled `defer` pairs and macros. See [scoping.md](scoping.md) for the
-full design.
+hand-rolled `defer` pairs and macros. The honest caveat, from [scoping.md](scoping.md):
+Odin already ships the *pairing* (`deferred_*`); gauge's contribution is the
+caller-chosen failure gate, `ok` visible in the body, and the value-producing
+destructor — and that delta has to earn its syntax in real use, dogfooded on top
+of a proven `defer`.
 
 ## Principles
 
@@ -52,7 +57,7 @@ Consistency and familiarity sometimes pull against each other. Pure consistency 
 - **Constants may reference forward.** `GiB :: 1024 * TiB` is legal with `TiB` declared later — no forward declaration, no ordering ceremony. This is free: the parser never resolves names (an `Ident` is order-agnostic), so the rule only constrains the constant-folding pass to not assume source order. The one cost: a cyclic chain (`A :: B; B :: A`) is a source error diagnosed at fold time, never a hang or a panic.
 - **Newline = pure separator.** Newlines separate expressions and carry no value semantics. A block's value is its last expression; to "return nothing", end with a unit expression.
 - **Blocks are values and scopes.** `{ ... }` composes like any expression and is a scope; scoped defers will ride on blocks.
-- **`scoped` resources are core.** The declarative, block-scoped resource model — `File :: scoped { file_open, file_close }`, `File("data.txt") { ... }` — is the language's reason to exist, not a convenience. See [scoping.md](scoping.md).
+- **`scoped` resources are core.** The declarative, block-scoped resource model — `File :: scoped { file_open, file_close }`, `File("data.txt") { ... }` — is the language's reason to exist, not a convenience. See [scoping.md](scoping.md). (The *pairing* itself isn't novel — Odin's `deferred_*` ship it; what gauge adds is the caller-chosen gate, `ok` in the body, and the block value.)
 - **`()` is unit.**
 - **Byte offsets everywhere.** Positions are byte offsets, never line/col — one position model through the whole toolchain.
 - **No preprocessor.** `when`/constants take its place, the way the Pascal/Modula/Oberon line (and Odin) avoid one.

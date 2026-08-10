@@ -11,7 +11,7 @@ yet — the lexer and AST exist; these are the target shape.
 |---|---|
 | `ImGui::NewFrame()` / `ImGui::Render()` | `Frame { ... }` |
 | `ImGui::Begin(name)` / `ImGui::End()` | `Window(name) { ... }` |
-| `if (ImGui::Begin(name)) { ...; ImGui::End(); }` | `Window(name) { ... }` — the failure gate |
+| `if (ImGui::Begin(name)) { ...; ImGui::End(); }` | `if Window(name) { ... }` — the caller chooses the gate |
 | `ImGui::PushFont(f)` / `ImGui::PopFont()` | `Font(f) { ... }` |
 | RAII wrapper classes (`ImScoped::Window`) | none needed — blocks do it |
 
@@ -44,7 +44,7 @@ Frame {
 `Frame` and `Window` nest; the frame is torn down after the window. Both
 pairings are guaranteed by construction.
 
-## Example 2 — the failure gate (collapsed windows)
+## Example 2 — the gate (collapsed windows)
 
 `ImGui::Begin` returns `false` when the window is collapsed, so the canonical
 C++ is an `if`:
@@ -56,18 +56,23 @@ if (ImGui::Begin("My Window")) {
 }
 ```
 
-In gauge the scoped block *is* the gate — if the constructor returns
-`false`, the body is skipped and no cleanup runs, so the `if` disappears:
+In gauge the caller chooses the gate. `Window("My Window") { ... }` always runs
+the body — `window_begin`'s `bool` is bound as `ok` for the body to use or
+ignore. Prefixing the block with `if` turns that `bool` into the gate: `false`
+skips the body *and* skips `window_end`, matching ImGui's rule of "don't call
+`End` when `Begin` returns `false`":
 
 ```odin
 Frame {
-	Window("My Window") {
+	if Window("My Window") {
 		Text("This code is only shown if the window is open.")
 	}
 }
 ```
 
-Clay's `layout_begin` always succeeds; ImGui's can fail. The gate covers both.
+So the `if` doesn't disappear — it moves, and it moves to the *caller's* side,
+where it belongs. Clay's `layout_begin` always succeeds and is used ungated;
+ImGui's can fail and is used gated. Same resource, caller's choice.
 
 ## Example 3 — real work: checkboxes, a button, and a closing flag
 
@@ -97,7 +102,7 @@ show_demo_window     := true
 show_another_window  := false
 
 Frame {
-	Window("Hello, world!") {
+	if Window("Hello, world!") {
 		Text("This is some useful text.")
 		Checkbox("Demo Window", &show_demo_window)
 		Checkbox("Another Window", &show_another_window)
@@ -107,7 +112,7 @@ Frame {
 	}
 
 	if show_another_window {
-		Window("Another Window", &show_another_window) {
+		if Window("Another Window", &show_another_window) {
 			Text("Hello from another window!")
 			if Button("Close Me") {
 				show_another_window = false
@@ -121,10 +126,13 @@ Notes:
 
 - `&show_demo_window` is ImGui's `p_open` — the window writes the open flag
   through the pointer. Same semantics, same spelling.
+- Both windows are closable, so both are **gated** (`if Window(...)`) — when the
+  user closes one, `Begin` returns `false` and the body is skipped, exactly like
+  `if (ImGui::Begin(..., &p_open))`.
 - The body can `return`, `break`, or throw — `window_end` still runs, because
   it's a defer.
 - A window guarded by `if show_another_window` is just a normal conditional
-  around a scoped block.
+  around a gated scoped block.
 
 ## Example 4 — a tool window with sliders
 
@@ -296,7 +304,7 @@ commands, the scoped block's value is that return: `commands := ClayLayout {
 ... }`. The destructor's output escapes exactly where the scope ends.
 
 This is the same idea Clay's macro reaches for — `scoped` is its
-language-level form, and it composes (LIFO), gates (Begin-can-fail), reuses
+language-level form, and it composes (LIFO), gates (the caller's `if`), reuses
 (a named resource), and yields a value where the macro cannot.
 
 ## Why these aren't just macros or wrappers
