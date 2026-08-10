@@ -368,6 +368,13 @@ parse_program :: proc(p: ^Parser, allocator: mem.Allocator) -> (program: ^Progra
 	for !is_eof(p) {
 		decl := parse_decl(p, allocator) or_return
 		append(&program.decls, decl)
+
+		// A declaration occupies its line (§11.16): the next token must
+		// be a newline or EOF, never another declaration.
+		if !is_eof(p) && !match_simple(p, .NewLine) {
+			p.err = fmt.tprintf("Expected a newline after the declaration at byte %d, got %v — one declaration per line, this isn't a marshalling yard", current(p).offset, current(p).value)
+			return program, false
+		}
 		skip_newlines(p)
 	}
 	expect_simple(p, .EOF) or_return

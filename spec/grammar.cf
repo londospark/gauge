@@ -12,8 +12,10 @@
 -- model is enforced outside the grammar. Inside `( )` (and, later, `[ ]`) a
 -- newline is insignificant — the parser's `zoning_pre_parse` pass drops
 -- NewLine tokens while its paren depth is > 0 — and outside parens a newline
--- ends the expression and separates declarations. A declaration's value
--- starts on the same line as its `::`. Braces are never zones: `{ }` stays
+-- ends the expression and separates declarations. Declarations are
+-- line-bounded: the value (if any) starts on the same line as the binding
+-- marker, and a declaration ends at a newline — one declaration per line.
+-- Braces are never zones: `{ }` stays
 -- newline-separated, which is what keeps `;` out of the language. See
 -- spec/language.md §11.16.
 
@@ -45,6 +47,7 @@ DeclTyped.    Decl ::= Ident ":" Type ":" Expr ;
 -- deferred: DeclProcTyped. Decl ::= Ident ":" Type ":" "proc" "(" ")" Block ;
 -- deferred: DeclVar.       Decl ::= Ident ":=" Expr ;
 -- deferred: DeclVarT.      Decl ::= Ident ":" Type "=" Expr ;
+-- deferred: DeclVarZ.      Decl ::= Ident ":" Type ;   -- ZII: zero-initialised, no initialiser (§11.19)
 
 -- --- Types ------------------------------------------------------------------
 
@@ -71,7 +74,11 @@ EIdent. Expr4 ::= Ident ;
 
 coercions Expr 4 ;
 
--- deferred: ECall.   Expr4 ::= Ident "(" [Expr] ")" ;
+-- Calls are brackets with positional args now and labelled args later
+-- (spec/language.md §11.18): the Arg productions cover both shapes.
+-- deferred: ECall.   Expr4 ::= Ident "(" [Arg] ")" ;
+-- deferred: EArg.     Arg ::= Expr ;
+-- deferred: EArgKey.  Arg ::= Ident ":" Expr ;
 -- deferred: EUnit.   Expr4 ::= "(" ")" ;
 -- deferred: EAssign. Expr  ::= Expr "=" Expr ;       -- right-assoc, (2,1)
 

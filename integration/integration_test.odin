@@ -219,6 +219,18 @@ test_e2e_value_must_start_on_same_line :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_e2e_one_decl_per_line :: proc(t: ^testing.T) {
+	// The line-bounded ruling, end to end: the lexer emits no newline
+	// between the two declarations, so the parser must refuse the
+	// second one. One declaration per line, no exceptions.
+	src := "x :: 5 y :: 6"
+
+	_, ok, stage := lex_and_parse(t, src)
+	testing.expectf(t, !ok, "want a parse error for a second declaration on the same line")
+	testing.expectf(t, stage == "parse", "want the failure in the parser, got %s", stage)
+}
+
+@(test)
 test_e2e_zone_closes_then_newline_separates :: proc(t: ^testing.T) {
 	// The depth-0 boundary, end to end: once the `)` closes the zone,
 	// the next newline is significant again and a second declaration

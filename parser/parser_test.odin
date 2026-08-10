@@ -1493,6 +1493,30 @@ test_parse_rejects_newline_before_value :: proc(t: ^testing.T) {
 	_ = program
 }
 
+@(test)
+test_parse_rejects_second_decl_on_same_line :: proc(t: ^testing.T) {
+	// x :: 5 y :: 6 — the tail of the line-bounded ruling (§11.16): a
+	// declaration occupies its line, so a second declaration on the same
+	// line is an error. RED against the committed baseline, where the
+	// parse loop happily consumed the second decl after the newline-free
+	// gap.
+	tokens := []tok.Token{
+		{offset = 0, value = tok.Identifier("x")},
+		{offset = 2, value = tok.SimpleToken.Colon},
+		{offset = 3, value = tok.SimpleToken.Colon},
+		{offset = 5, value = tok.Number("5")},
+		{offset = 7, value = tok.Identifier("y")},
+		{offset = 9, value = tok.SimpleToken.Colon},
+		{offset = 10, value = tok.SimpleToken.Colon},
+		{offset = 12, value = tok.Number("6")},
+		{offset = 13, value = tok.SimpleToken.EOF},
+	}
+
+	program, ok, _ := parse(tokens, new_test_arena(t))
+	testing.expectf(t, !ok, "want a parse error for a second declaration on the same line, but parse succeeded")
+	_ = program
+}
+
 // --- Pre-pass unit tests ------------------------------------------------
 //
 // The pre-pass is the whole §11.16 decision in one function, so it earns

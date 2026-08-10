@@ -25,7 +25,8 @@ decisions live in §11.
 - **`()` unit value** — the `Unit` node exists in the AST; `()` is
   currently a source error.
 - **Variables** — `x := expr` and `x : Type = expr`; same optional type
-  slot as consts, different binder.
+  slot as consts, different binder. Plus the ZII default-init form
+  `x : Type` (§11.19) — zero-initialised, no explicit initialiser.
 - **Slices** — `[]T`; carries the string-type fork. §11.17 settles the
   representation (pointer + length); whether strings are a distinct
   builtin or `[]u8` is decided here.
@@ -59,9 +60,12 @@ decisions live in §11.
   declaration start (the two-token `Ident` + `:` lookahead), absorbing
   any stray closers along the way, so N bad declarations yield N errors
   and the good ones still parse. Newlines are *not* the sync point:
-  they are skipped noise at declaration level and meaningless inside
-  groups/blocks, and `x :: 5 y :: 6` on one line is already legal, so
-  a newline-based resync would skip real declarations. One error per
+  inside an unclosed zone the pre-pass has already dropped them, so a
+  newline-based resync would miss the true declaration start; the resync
+  set stays token-based (`Ident` `:` lookahead). Declarations are
+  line-bounded (§11.16) — one per line — but that only makes a newline a
+  boundary at depth 0, which is precisely where recovery cannot rely on
+  it. One error per
   declaration (cascade suppression) so recovery never becomes spew.
   `Parser.err` grows into a diagnostics slice (`{offset, message}`,
   byte-sorted) and `parse` returns them all. The demo stops discarding
@@ -113,7 +117,8 @@ multi-line decision lands with the paren-zone pre-pass in this commit.*
   parser runs, the depth clamps at 0 (a stray `)` poisons nothing), braces
   are never zones, and the lexer and parser are untouched. The deciding
   question — is `x :: 4 + 2` newline `+ 3` legal without parens? — answers
-  no, and a declaration's value must start on the same line as its `::`.
+  no, and a declaration occupies its line — value (if any) on the same
+  line as the binding marker, one declaration per line.
   The OCaml-ward future path (trailing-operator continuation only, a
   meaning-preserving relaxation) and the lesson are recorded in §11.16, and
   the end-to-end `integration/` suite pins the pipeline.

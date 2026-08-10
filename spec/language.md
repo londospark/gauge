@@ -469,12 +469,15 @@ out of the language. The trailing-operator invariant survives unchanged:
 `x :: 4 +` newline `2` is still an error, because outside a zone the newline
 ends the expression and the dangling `+` grabs no right operand.
 
-A declaration's value must start on the same line as its `::` —
-`x ::` newline `(3 + 4)` is an error: the newline ends the declaration
-header, so a value on the next line has no header to attach to. (This fell
-out of `parse_decl`'s type-slot disambiguation — the newline is neither
-`::` nor a type — but a default by accident is a rule in the making, so it
-is a rule.)
+A declaration occupies its line. The header and the value (if any) start
+on the same line as the binding marker — `x ::` newline `(3 + 4)` is an
+error, because the newline ends the declaration header and a value on the
+next line has no header to attach to — and the declaration ends at the
+next newline: `x :: 5 y :: 6` is an error too, one declaration per line.
+(The header rule fell out of `parse_decl`'s type-slot disambiguation —
+the newline is neither `::` nor a type — while the tail rule is a new
+check in the parse loop. A default by accident and a deliberate
+completion; both are now rules.)
 
 **Implementation.** The decision lands as `zoning_pre_parse`, a token-
 filtering pre-pass at the head of `parse`: `NewLine` tokens are dropped
@@ -536,3 +539,58 @@ trust nothing C hands back without measuring it. The lexer already embodies
 the decision: `StringLiteral` values are zero-copy slices of the source
 (§3.4), so the front end was pointer + length before this entry was
 written.
+
+### 11.18 Call syntax: brackets, positional now, labelled later
+
+**Decision.** Calls use bracket syntax — `f(a, b)`, the shape of the deferred
+`ECall` rule, the `LParen` (30,30) binding-power row already in the table,
+and the paren-zone makes `f(a,` newline `b)` legal with no new machinery
+(§11.16's promise). Arg lists are positional today; labelled (keyword) args
+— `f(a, key: value)` — are the deliberate extension, deferred with the call
+slice. Positional args precede labelled ones (Swift's rule), so
+`f(a, key: v)` is legal and `f(key: v, a)` is not.
+
+**Why brackets.** The alternatives were refused on collisions with committed
+decisions, not on taste:
+
+- **S-expressions** (`(f a b)`) collide with grouping: `( )` is already the
+  paren-zone construct, `(f)` is genuinely ambiguous, and the whole
+  precedence grammar would be replaced. A different language, not a call
+  syntax.
+- **Juxtaposition** (`f a b`) breaks one-line multi-declarations — `x :: a
+  y :: 6` is two declarations today, and under juxtaposition becomes the
+  call `a(y)` before choking on the `::`. It also needs layout rules the
+  newline model refused (§11.16) and an invisible binding-power row the
+  Pratt loop cannot see.
+- **Bare Smalltalk messages** fight the newline model (a message is a
+  multi-token sequence, and a newline ends it mid-message) and presume an
+  object/message paradigm gauge does not have.
+
+**Why labelled args are unambiguous.** `:` has no expression-operator role —
+it is absent from `binding_power` and `parse_prefix`, and the type-slot
+colon appears only in declaration headers, which never nest inside
+expressions. So inside call parens, `Ident` `:` can only be a labelled-arg
+separator; the parser claims dead territory. `)` can never be an operator
+either: it terminates the current zone at all times, which is what lets the
+group and call arms trust zone termination.
+
+**The `()` wrinkle.** `f()` is a zero-arg call; `()` is the deferred Unit
+value — position disambiguates (a paren directly after the callee is a
+call). Whether `()` is a passable value is a question for the Unit card.
+
+### 11.19 Zero initialisation is the default (ZII, not RAII)
+
+**Decision.** Values are zero-initialised by default. The binding form is
+the type slot with no initialiser: `X : int` declares an int binding
+initialised to 0. Gauge employs ZII rather than RAII: no constructor/
+destructor pairs implicitly acquire and release; a zero value is defined
+and inert, initialisation is an explicit step, and cleanup is the
+`defer`/`scoped` machinery (docs/scoping.md). A consequence: a value that
+was never successfully initialised is still defined (zero) — there is no
+undefined state to trip over.
+
+**Status.** Deferred with the variables card — `DeclVarZ` is a deferred
+rule in grammar.cf, and `x : T = expr` (`DeclVarT`) already covers
+explicit initialisation. Open at implementation time: the AST shape (a
+Var node carrying the zero default) and how the failure gate reports a
+failed acquisition (an error return vs a zero value).
