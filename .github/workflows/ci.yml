@@ -4,6 +4,11 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
@@ -27,73 +32,24 @@ jobs:
         run: odin build .
 
       - name: Test lexer
-        run: |
-          set +e
-          output=$(odin test lexer/ 2>&1)
-          status=$?
-          set -e
-
-          echo "::group::odin test lexer"
-          printf '%s\n' "$output"
-          echo "::endgroup::"
-
-          result=$(printf '%s\n' "$output" | grep -E '^Finished ' | tail -1 || true)
-          failures=$(printf '%s\n' "$output" | grep -E '^[[:space:]]+- ' | sed 's/^[[:space:]]*//' || true)
-
-          if [ -n "$GITHUB_STEP_SUMMARY" ]; then
-            {
-              echo "### lexer"
-              echo "\`${result:-no summary line}\`"
-              if [ -n "$failures" ]; then
-                echo ""
-                echo '```'
-                printf '%s\n' "$failures"
-                echo '```'
-              fi
-            } >> "$GITHUB_STEP_SUMMARY"
-          fi
-
-          if [ -n "$failures" ]; then
-            while IFS= read -r line; do
-              safe=${line//%/%25}
-              echo "::error::lexer: $safe"
-            done <<< "$failures"
-          fi
-
-          exit $status
+        if: always()
+        run: odin test lexer/ -define:ODIN_TEST_JSON_REPORT=lexer.json
 
       - name: Test parser
+        if: always()
+        run: odin test parser/ -define:ODIN_TEST_JSON_REPORT=parser.json
+
+      - name: Convert test reports to JUnit
+        if: always()
         run: |
-          set +e
-          output=$(odin test parser/ 2>&1)
-          status=$?
-          set -e
+          mkdir -p junit
+          for report in *.json; do
+            python3 scripts/json_to_junit.py "$report" > "junit/${report%.json}.xml"
+          done
 
-          echo "::group::odin test parser"
-          printf '%s\n' "$output"
-          echo "::endgroup::"
-
-          result=$(printf '%s\n' "$output" | grep -E '^Finished ' | tail -1 || true)
-          failures=$(printf '%s\n' "$output" | grep -E '^[[:space:]]+- ' | sed 's/^[[:space:]]*//' || true)
-
-          if [ -n "$GITHUB_STEP_SUMMARY" ]; then
-            {
-              echo "### parser"
-              echo "\`${result:-no summary line}\`"
-              if [ -n "$failures" ]; then
-                echo ""
-                echo '```'
-                printf '%s\n' "$failures"
-                echo '```'
-              fi
-            } >> "$GITHUB_STEP_SUMMARY"
-          fi
-
-          if [ -n "$failures" ]; then
-            while IFS= read -r line; do
-              safe=${line//%/%25}
-              echo "::error::parser: $safe"
-            done <<< "$failures"
-          fi
-
-          exit $status
+      - name: Publish test results
+        if: always()
+        uses: mikepenz/action-junit-report@v6.4.2
+        with:
+          report_paths: junit/*.xml
+          token: ${{ github.token }}
