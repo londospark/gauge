@@ -53,7 +53,7 @@ Binary :: struct {
 }
 
 UnaryOperator :: enum {
-	Minus
+	Minus, Plus
 }
 
 Unary :: struct {
@@ -237,6 +237,17 @@ binding_power :: proc(token: tok.Token) -> (BindingPower, bool) {
 	return BindingPower { left = 0, right = 0 }, false
 }
 
+unary_binding_power :: proc(token: tok.Token) -> (int, bool) {
+	simple, is_simple := token.value.(tok.SimpleToken)
+	if !is_simple do return 0, false
+
+	#partial switch simple {
+	case .Minus, .Plus: return 25, true
+	}
+
+	return 0, false
+}
+
 to_binary_operator :: proc(simple: tok.SimpleToken) -> BinaryOperator {
 	#partial switch simple {
 	case .Plus:  return .Add
@@ -247,9 +258,17 @@ to_binary_operator :: proc(simple: tok.SimpleToken) -> BinaryOperator {
 	panic(fmt.tprintf("Someone passed %v to us and that's not a binary operator", simple))
 }
 
+to_unary_operator :: proc(simple: tok.SimpleToken) -> UnaryOperator {
+	#partial switch simple {
+	case .Plus:  return .Plus
+	case .Minus: return .Minus
+	}
+	panic(fmt.tprintf("Someone passed %v to us and that's not a unary operator", simple))
+}
+
 parse_expression :: proc(p: ^Parser, minimum_binding_power: int, allocator: mem.Allocator) -> (expr: ^Expr, ok: bool) {
 	lhs := parse_prefix(p, allocator) or_return
-	
+
 	for {
 		bp, ok := binding_power(current(p))
 		if bp.left < minimum_binding_power || !ok do return lhs, true
@@ -285,10 +304,11 @@ parse_prefix :: proc(p: ^Parser, allocator: mem.Allocator) -> (expr: ^Expr, ok: 
 			expr := parse_expression(p, 0, allocator) or_return
 			expect_simple(p, .RParen) or_return
 			return expr, true
-		} else if v == .Minus {
+		} else if v == .Minus || v == .Plus {
 			advance(p)
-			expr := parse_expression(p, 25, allocator) or_return
-			return new_unary(.Minus, expr, token.offset, allocator), true
+			bp := unary_binding_power(token) or_return
+			expr := parse_expression(p, bp, allocator) or_return
+			return new_unary(to_unary_operator(v), expr, token.offset, allocator), true
 		}
 		p.err = fmt.tprintf("Expected an expression at byte %d, got %v", token.offset, token.value)
 

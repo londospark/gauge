@@ -164,7 +164,7 @@ The AST holds a type as a tree: `TypeName` (the leaf) or `TypePointer`
 
 | level | operators | associativity |
 |---|---|---|
-| unary | `-` | — |
+| unary | `-` `+` | — |
 | multiplicative | `*` `/` | left |
 | additive | `+` `-` | left |
 | assignment | `=` *(deferred)* | right |
@@ -179,6 +179,7 @@ same precedence:
 | `*` `/` | (20, 21) | implemented |
 | `(` | (30, 30) | row present; call arm deferred |
 | unary `-` | operand floor **25** | implemented |
+| unary `+` | operand floor **25** | implemented |
 
 Associativity falls out of the asymmetry: `left < right` is
 left-associative, `left > right` is right-associative. See
@@ -193,16 +194,22 @@ primary = number | string | identifier | "(" , expression , ")" ;
 Grouping `( expr )` is an atomic unit; `()` is the unit value *(deferred —
 currently an error)*.
 
-### 7.3 Unary minus
+### 7.3 Unary operators
 
-`- expr` — the operand is parsed at binding-power floor 25, strictly above
-`*`'s left strength (20). This makes:
+The prefix operators are `-` and `+`. Both bind their operand at
+binding-power floor 25 — strictly above `*`'s left strength (20) — decided
+by the single `unary_binding_power` lookup, so the two signs share one floor
+by construction and a second copy of the value can never drift in. Both are
+wired into `parse_prefix` through one shared arm; `to_unary_operator` maps
+the token to the AST operator. The forms:
 
 ```
 -5         →  Unary(Minus, 5)
 -2 * 3     →  (-2) * 3
 -2 + 3     →  (-2) + 3
 --5        →  Unary(Minus, Unary(Minus, 5))
++5         →  Unary(Plus, 5)
++-5        →  Unary(Plus, Unary(Minus, 5))
 ```
 
 ### 7.4 Calls and assignment *(deferred)*
@@ -291,18 +298,20 @@ retrofit.
 ### 11.5 Position decides role
 
 **Decision.** A token's meaning is decided by its position: `(` at the start
-of an expression is grouping, after an expression it will be a call; `-` at
-the start is unary, between operands it is binary.
+of an expression is grouping, after an expression it will be a call; `-` and
+`+` at the start are unary, between operands they are binary.
 
 **Why.** This is what makes the grammar unambiguous without lookahead. It is
 also why the proc dispatch must use the `proc` keyword rather than "`(` means
 proc" — the `(` in `x :: (4 + 2) * 3` is unambiguously grouping, and only
 the keyword can separate that from a signature.
 
-### 11.6 Unary minus binds at floor 25
+### 11.6 Unary operators bind at floor 25
 
-**Decision.** The operand of unary `-` is parsed at binding-power floor 25 —
-strictly above `*`'s left strength (20).
+**Decision.** The operand of a unary operator is parsed at binding-power floor
+25 — strictly above `*`'s left strength (20) — and the floor is supplied by
+one `unary_binding_power` lookup serving both `-` and `+`, so the value lives
+in a single place instead of an inline literal in `parse_prefix`.
 
 **Why.** Parsing the operand at floor 0 drags lower-precedence operators
 inside: `-2 * 3` becomes `-(2 * 3)`. The floor is the guard; the recursion is

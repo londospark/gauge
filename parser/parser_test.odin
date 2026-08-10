@@ -416,7 +416,7 @@ test_parse_unary_minus :: proc(t: ^testing.T) {
 }
 
 @(test)
-test_parse_unary_minus_binds_looser_than_plus :: proc(t: ^testing.T) {
+test_parse_unary_minus_binds_tighter_than_plus :: proc(t: ^testing.T) {
 	// x :: -2 + 3 must group as (-2) + 3, not -(2 + 3). This is the
 	// floor test: parsing the unary operand at 0 would drag the + in.
 	tokens := []tok.Token{
@@ -558,6 +558,240 @@ test_parse_unary_minus_binds_tighter_than_star :: proc(t: ^testing.T) {
 			}
 		case:
 			testing.expect(t, false, "value should be a multiplication")
+		}
+	case:
+		testing.expect(t, false, "declaration should be a constant")
+	}
+}
+
+@(test)
+test_unary_binding_power_minus :: proc(t: ^testing.T) {
+	// The mechanism that replaced the inline 25 in parse_prefix: a dedicated
+	// lookup owns the floor. Its contract is (a) the value, pinned here as
+	// 25, and (b) strictly above `*`'s left strength (20), so a prefix
+	// operand can never swallow a multiplication.
+	bp, ok := unary_binding_power(tok.Token{value = tok.SimpleToken.Minus})
+	testing.expectf(t, ok, "Minus must be recognised as a unary operator")
+	testing.expectf(t, bp == 25, "want floor 25 for unary minus, got %d", bp)
+	testing.expectf(t, bp > 20, "unary floor %d must exceed `*`'s left strength 20", bp)
+}
+
+@(test)
+test_unary_binding_power_plus :: proc(t: ^testing.T) {
+	// Plus shares minus's floor: `+5` would bind exactly like `-5` once
+	// parse_prefix grows the arm. The row is dormant today — the parse test
+	// below pins that.
+	minus_bp, _ := unary_binding_power(tok.Token{value = tok.SimpleToken.Minus})
+	plus_bp, plus_ok := unary_binding_power(tok.Token{value = tok.SimpleToken.Plus})
+	testing.expectf(t, plus_ok, "Plus must be recognised as a unary operator")
+	testing.expectf(t, plus_bp == 25, "want floor 25 for unary plus, got %d", plus_bp)
+	testing.expectf(t, plus_bp == minus_bp,
+		"unary plus and minus must share one floor, got %d and %d", plus_bp, minus_bp)
+}
+
+@(test)
+test_unary_binding_power_rejects_non_unary :: proc(t: ^testing.T) {
+	// The lookup's bool answers "is this a unary operator at all?". Binary
+	// operators and atoms must be rejected with floor 0, not silently
+	// given minus's floor.
+	rejected := []tok.Value{
+		tok.SimpleToken.Star,
+		tok.SimpleToken.LParen,
+		tok.Number("5"),
+	}
+	for v in rejected {
+		bp, ok := unary_binding_power(tok.Token{value = v})
+		testing.expectf(t, !ok, "token %v must not be a unary operator", v)
+		testing.expectf(t, bp == 0, "rejected token %v must report floor 0, got %d", v, bp)
+	}
+}
+
+@(test)
+test_parse_unary_plus :: proc(t: ^testing.T) {
+	// x :: +5 — a leading plus must be a real Unary expression, not an
+	// error: Unary(Plus, Number(5)). This is the arm test.
+	tokens := []tok.Token{
+		{offset = 0, value = tok.Identifier("x")},
+		{offset = 2, value = tok.SimpleToken.Colon},
+		{offset = 3, value = tok.SimpleToken.Colon},
+		{offset = 5, value = tok.SimpleToken.Plus},
+		{offset = 6, value = tok.Number("5")},
+		{offset = 7, value = tok.SimpleToken.EOF},
+	}
+
+	program, ok, err := parse(tokens, new_test_arena(t))
+	testing.expectf(t, ok, "parse failed: %s", err)
+	if !ok {
+		return
+	}
+
+	testing.expectf(t, len(program.decls) == 1, "want 1 declaration, got %d", len(program.decls))
+	if len(program.decls) != 1 {
+		return
+	}
+
+	#partial switch d in program.decls[0]^ {
+	case Const:
+		#partial switch v in d.value^ {
+		case Unary:
+			testing.expectf(t, v.operator == .Plus, "want unary Plus, got %v", v.operator)
+			#partial switch operand in v.operand^ {
+			case Number:
+				testing.expectf(t, operand.value == "5", "want operand 5, got %q", operand.value)
+			case:
+				testing.expect(t, false, "unary operand should be a number literal")
+			}
+		case:
+			testing.expect(t, false, "value should be a Unary expression")
+		}
+	case:
+		testing.expect(t, false, "declaration should be a constant")
+	}
+}
+
+@(test)
+test_parse_unary_plus_binds_tighter_than_plus :: proc(t: ^testing.T) {
+	// x :: +2 + 3 must group as (+2) + 3, not +(2 + 3). The unary
+	// operand's floor keeps the binary + out of it.
+	tokens := []tok.Token{
+		{offset = 0, value = tok.Identifier("x")},
+		{offset = 2, value = tok.SimpleToken.Colon},
+		{offset = 3, value = tok.SimpleToken.Colon},
+		{offset = 5, value = tok.SimpleToken.Plus},
+		{offset = 6, value = tok.Number("2")},
+		{offset = 8, value = tok.SimpleToken.Plus},
+		{offset = 10, value = tok.Number("3")},
+		{offset = 11, value = tok.SimpleToken.EOF},
+	}
+
+	program, ok, err := parse(tokens, new_test_arena(t))
+	testing.expectf(t, ok, "parse failed: %s", err)
+	if !ok {
+		return
+	}
+
+	testing.expectf(t, len(program.decls) == 1, "want 1 declaration, got %d", len(program.decls))
+	if len(program.decls) != 1 {
+		return
+	}
+
+	#partial switch d in program.decls[0]^ {
+	case Const:
+		#partial switch v in d.value^ {
+		case Binary:
+			// Root is `+`, so the unary grabbed only the 2.
+			testing.expectf(t, v.operator == .Add, "want root Add, got %v", v.operator)
+			#partial switch lhs in v.lhs^ {
+			case Unary:
+				testing.expectf(t, lhs.operator == .Plus, "want lhs unary Plus, got %v", lhs.operator)
+			case:
+				testing.expect(t, false, "root lhs should be the Unary(+2)")
+			}
+		case:
+			testing.expect(t, false, "value should be a binary expression")
+		}
+	case:
+		testing.expect(t, false, "declaration should be a constant")
+	}
+}
+
+@(test)
+test_parse_unary_plus_binds_tighter_than_star :: proc(t: ^testing.T) {
+	// x :: +2 * 3 must group as (+2) * 3, not +(2 * 3). The unary
+	// operand binds at the shared floor, strictly above `*`'s left
+	// strength 20.
+	tokens := []tok.Token{
+		{offset = 0, value = tok.Identifier("x")},
+		{offset = 2, value = tok.SimpleToken.Colon},
+		{offset = 3, value = tok.SimpleToken.Colon},
+		{offset = 5, value = tok.SimpleToken.Plus},
+		{offset = 6, value = tok.Number("2")},
+		{offset = 8, value = tok.SimpleToken.Star},
+		{offset = 10, value = tok.Number("3")},
+		{offset = 11, value = tok.SimpleToken.EOF},
+	}
+
+	program, ok, err := parse(tokens, new_test_arena(t))
+	testing.expectf(t, ok, "parse failed: %s", err)
+	if !ok {
+		return
+	}
+
+	testing.expectf(t, len(program.decls) == 1, "want 1 declaration, got %d", len(program.decls))
+	if len(program.decls) != 1 {
+		return
+	}
+
+	#partial switch d in program.decls[0]^ {
+	case Const:
+		#partial switch v in d.value^ {
+		case Binary:
+			// Root is `*`, so the unary bound first: lhs = Unary(+2).
+			testing.expectf(t, v.operator == .Multiply, "want root Multiply, got %v", v.operator)
+			#partial switch lhs in v.lhs^ {
+			case Unary:
+				testing.expectf(t, lhs.operator == .Plus, "want lhs unary Plus, got %v", lhs.operator)
+				#partial switch operand in lhs.operand^ {
+				case Number:
+					testing.expectf(t, operand.value == "2", "want unary operand 2, got %q", operand.value)
+				case:
+					testing.expect(t, false, "unary operand should be 2")
+				}
+			case:
+				testing.expect(t, false, "root lhs should be the Unary(+2)")
+			}
+		case:
+			testing.expect(t, false, "value should be a multiplication")
+		}
+	case:
+		testing.expect(t, false, "declaration should be a constant")
+	}
+}
+
+@(test)
+test_parse_unary_plus_minus_mix :: proc(t: ^testing.T) {
+	// x :: +-5 — mixed signs nest: Unary(Plus, Unary(Minus, 5)). The
+	// plus arm must recurse back into the minus arm.
+	tokens := []tok.Token{
+		{offset = 0, value = tok.Identifier("x")},
+		{offset = 2, value = tok.SimpleToken.Colon},
+		{offset = 3, value = tok.SimpleToken.Colon},
+		{offset = 5, value = tok.SimpleToken.Plus},
+		{offset = 6, value = tok.SimpleToken.Minus},
+		{offset = 7, value = tok.Number("5")},
+		{offset = 8, value = tok.SimpleToken.EOF},
+	}
+
+	program, ok, err := parse(tokens, new_test_arena(t))
+	testing.expectf(t, ok, "parse failed: %s", err)
+	if !ok {
+		return
+	}
+
+	testing.expectf(t, len(program.decls) == 1, "want 1 declaration, got %d", len(program.decls))
+	if len(program.decls) != 1 {
+		return
+	}
+
+	#partial switch d in program.decls[0]^ {
+	case Const:
+		#partial switch v in d.value^ {
+		case Unary:
+			testing.expectf(t, v.operator == .Plus, "want outer unary Plus, got %v", v.operator)
+			#partial switch inner in v.operand^ {
+			case Unary:
+				testing.expectf(t, inner.operator == .Minus, "want inner unary Minus, got %v", inner.operator)
+				#partial switch num in inner.operand^ {
+				case Number:
+					testing.expectf(t, num.value == "5", "want innermost 5, got %q", num.value)
+				case:
+					testing.expect(t, false, "innermost should be the number 5")
+				}
+			case:
+				testing.expect(t, false, "outer operand should be a Unary")
+			}
+		case:
+			testing.expect(t, false, "value should be a Unary expression")
 		}
 	case:
 		testing.expect(t, false, "declaration should be a constant")

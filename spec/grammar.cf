@@ -46,7 +46,7 @@ TypeName.    Type ::= Ident ;
 -- level transitions and the parenthesisation rule):
 --   Expr1  additive          (+ -)     binding power (10,11)
 --   Expr2  multiplicative    (* /)     binding power (20,21)
---   Expr3  unary minus                 operand floor 25
+--   Expr3  unary prefix (- +)         operand floor 25
 --   Expr4  primary (atoms, groups)
 
 EAdd.   Expr1 ::= Expr1 "+" Expr2 ;
@@ -54,6 +54,7 @@ ESub.   Expr1 ::= Expr1 "-" Expr2 ;
 EMul.   Expr2 ::= Expr2 "*" Expr3 ;
 EDiv.   Expr2 ::= Expr2 "/" Expr3 ;
 ENeg.   Expr3 ::= "-" Expr3 ;
+EPos.   Expr3 ::= "+" Expr3 ;
 ENum.   Expr4 ::= GNumber ;
 EStr.   Expr4 ::= String ;
 EIdent. Expr4 ::= Ident ;

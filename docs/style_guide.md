@@ -77,3 +77,21 @@ Everything below hangs off one idea:
   today.
 - The one exception is the error interface from section 2, because failure
   handling is the one thing that is genuinely expensive to retrofit.
+
+## 7. Magic numbers have one home
+
+The opening principle generalises: failure modes have one home, and so do
+numbers.
+
+- A magic number may stay a number — some values are judgements, not
+  constants from nature. The unary floor 25 is headroom, not a law of
+  physics; what matters is that it lives in exactly one place.
+- Every magic number is owned by exactly one named lookup or constant:
+  `unary_binding_power` owns the unary floor, `binding_power` owns the binary
+  pairs. Callers consult the owner; they never re-type the value.
+- The owner is the authority. Changing the value is a one-line edit at the
+  home, and every caller follows it without a second review.
+- A literal that appears once is not a problem. A second occurrence is the
+  beginning of drift: the two copies will disagree the first time the value
+  changes. When you find a duplicate, fold both call sites behind the lookup
+  before a third appears.
