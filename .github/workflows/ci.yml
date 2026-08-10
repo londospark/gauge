@@ -8,23 +8,26 @@ jobs:
   build-and-test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: cachix/install-nix-action@v31
-      - uses: cachix/cachix-action@v16
-        with:
-          name: devenv
-      - name: Install devenv
-        shell: bash
-        run: nix profile add nixpkgs#devenv
+      - uses: actions/checkout@v7
 
-      - name: Build the devenv shell and run git hooks
-        run: devenv test
+      - name: Install Odin (latest prebuilt nightly)
+        run: |
+          asset=$(curl -fsSL https://api.github.com/repos/odin-lang/Odin/releases/latest \
+            | jq -r '.assets[] | select(.name | contains("linux-amd64")) | .browser_download_url')
+          curl -fsSL -o odin.tar.gz "$asset"
+          tar -xzf odin.tar.gz
+          mv odin-linux-amd64-nightly+*/ odin
+          echo "$GITHUB_WORKSPACE/odin" >> "$GITHUB_PATH"
+          echo "ODIN_ROOT=$GITHUB_WORKSPACE/odin" >> "$GITHUB_ENV"
+
+      - name: Check Odin
+        run: odin version
 
       - name: Build
-        run: devenv shell --quiet odin build .
+        run: odin build .
 
       - name: Test lexer
-        run: devenv shell --quiet odin test lexer/
+        run: odin test lexer/
 
       - name: Test parser
-        run: devenv shell --quiet odin test parser/
+        run: odin test parser/

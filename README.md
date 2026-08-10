@@ -96,29 +96,5 @@ devenv shell --quiet odin build . -debug
 devenv shell --quiet gf2 ./gauge
 ```
 
-[gf2](https://github.com/nakst/gf) is the graphical GDB frontend (the one Tsoding uses). `.project.gf` configures it to load `gauge`, disable its gvim sync, and pause at `main` on launch. In Sublime Text, open `gauge.sublime-project` and hit **Ctrl+B** with **Odin: Debug (gf2)** selected.
+[gf2](https://github.com/nakst/gf) is the graphical GDB frontend. `.project.gf` configures it to load `gauge`, disable its gvim sync, and pause at `main` on launch. In Sublime Text, open `gauge.sublime-project` and hit **Ctrl+B** with **Odin: Debug (gf2)** selected.
 
-## Mermaid diagrams on GitHub
-
-Diagrams in this README use [Mermaid](https://mermaid.js.org), which GitHub renders **natively** — no plugin or image host required. To add one, wrap it in a fenced code block tagged `mermaid`:
-
-````markdown
-```mermaid
-flowchart TD
-    A --> B
-```
-````
-
-GitHub renders these in Markdown files, issues, pull requests, wikis, and discussions. The gotchas:
-
-- GitHub bundles its **own (older) Mermaid version**, so the latest features may not render.
-- `%%{init: ...}%%` config directives and some theme options are **ignored** — stick to plain syntax.
-- Safe diagram types: `flowchart`/`graph`, `sequenceDiagram`, `classDiagram`, `stateDiagram-v2`, `gantt`, `pie`, `erDiagram`, `gitGraph`.
-- Check which Mermaid version GitHub is running by putting `info` in a block:
-
-```mermaid
-info
-```
-
-- Preview locally first: the [Mermaid Live Editor](https://mermaid.live) or `npx @mermaid-js/mermaid-cli`.
-- Don't combine third-party Mermaid browser plugins with GitHub's renderer — they can error.
