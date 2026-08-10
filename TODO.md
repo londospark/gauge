@@ -4,13 +4,10 @@ The build roadmap. Design docs live in `docs/`; this tracks what gets built.
 
 ## Next
 
-- [ ] **Basic parser** — recursive descent for declarations/blocks, Pratt for
-      expressions, producing the AST in `parser/`. Something we can work with
-      before the harder features.
-- [ ] **AST memory model** — allocation and cleanup of the parsed tree.
-      Leaning toward an arena (allocate everything from one arena, free it in
-      one shot) rather than a walk-and-free; revisit once the parser produces
-      real trees. Tests currently use `context.temp_allocator` to sidestep it.
+- [ ] **Blocks and procedures** — `{ ... }` blocks and the `proc` dispatch
+      (`name :: proc() { }`). The `proc` keyword, the `Block`/`Proc` AST
+      shapes, and the two disabled proc tests already exist; `parse_block` and
+      `parse_args` are `todo` stubs and `parse_decl` panics on `proc`.
 - [ ] **`defer`** — block-scoped, LIFO, cleanup on every exit path. This is the
       machinery `scoped` rides on, and the most important piece of the
       language.
@@ -26,9 +23,20 @@ The build roadmap. Design docs live in `docs/`; this tracks what gets built.
 - [x] Design docs — `docs/design.md` (north star + principles),
       `docs/scoping.md` (the scoped model, RAII comparison, risks),
       `docs/scoping_examples.md` (Dear ImGui + Clay walk-throughs).
+- [x] **Basic parser (consts, types, expressions)** — recursive descent for
+      declarations, Pratt for expressions, producing the AST in `parser/`.
+      Inferred and typed consts, the type grammar (`^int`, `^^int`), binary
+      `+ - * /`, unary `-` (floor 25), and grouping all land with specs.
+      Blocks, proc dispatch, calls, and assignment are the next slices.
+- [x] **AST memory model** — the arena wins: every parse function and
+      constructor threads the allocator explicitly (a dropped allocator is a
+      compile error), tests allocate per-test dynamic arenas, and an
+      allocator-discipline test guards the threading. See `spec/language.md`
+      §11.12–11.13.
 
 ## Later (deferred by design)
 
-- Types (`x: int`), multi-char operators, `if`/`while`/`return` as
-  expressions, typed params, structs/unions/enums, `^` pointer syntax,
-  discard sugar, metaprogramming/comptime decisions, C codegen.
+- Calls and assignment, `()` unit, variables (`:=`), slices, tuples, unions,
+  generic types, multi-char operators, `if`/`while`/`return` as expressions,
+  typed params, structs/unions/enums, discard sugar, metaprogramming/comptime
+  decisions, C codegen.

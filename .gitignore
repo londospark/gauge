@@ -5,6 +5,3 @@ result
 /gauge
 *.o
 *.bin
-.opencode/node_modules
-.opencode/package.json
-.opencode/package-lock.json

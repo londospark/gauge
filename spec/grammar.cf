@@ -12,7 +12,9 @@
 comment "//" ;
 
 token Ident   (lower | upper | '_') (lower | upper | digit | '_')* ;
-token GNumber (digit)+ ('.' (digit)+)? ;
+-- The lexer also accepts a trailing dot with zero fractional digits (`3.`);
+-- the grammar mirrors that quirk (spec/language.md §3.3).
+token GNumber (digit)+ ('.' (digit)*)? ;
 
 -- `proc` is a hard keyword in the implementation. In LBNF a word becomes
 -- reserved only by appearing as a terminal in some rule, so `proc` is

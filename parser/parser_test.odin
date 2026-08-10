@@ -300,7 +300,7 @@ test_parse_precedence :: proc(t: ^testing.T) {
 @(test)
 test_parse_bracketed_const :: proc(t: ^testing.T) {
 	// x :: (4 + 2) * 3 — the `(` is grouping, not a proc signature.
-	// Exercises the LParen prefix arm; red until parse_prefix grows it.
+	// Exercises the LParen prefix arm; the group is one atomic left operand.
 	tokens := []tok.Token{
 		{offset = 0, value = tok.Identifier("x")},
 		{offset = 2, value = tok.SimpleToken.Colon},
@@ -375,8 +375,7 @@ test_parse_rejects_stray_close_paren :: proc(t: ^testing.T) {
 @(test)
 test_parse_unary_minus :: proc(t: ^testing.T) {
 	// x :: -5 — a leading minus is a real Unary expression, not an
-	// error and not a silent +5. Until the unary arm lands this is
-	// the spec: Unary(Minus, Number(5)) must be produced.
+	// error and not a silent +5: Unary(Minus, Number(5)) must be produced.
 	tokens := []tok.Token{
 		{offset = 0, value = tok.Identifier("x")},
 		{offset = 2, value = tok.SimpleToken.Colon},
@@ -516,7 +515,7 @@ test_parse_double_unary_minus :: proc(t: ^testing.T) {
 @(test)
 test_parse_unary_minus_binds_tighter_than_star :: proc(t: ^testing.T) {
 	// x :: -2 * 3 must group as (-2) * 3, not -(2 * 3). The unary
-	// operand binds at power 21, strictly above `*`'s left strength 20.
+	// operand binds at floor 25, strictly above `*`'s left strength 20.
 	tokens := []tok.Token{
 		{offset = 0, value = tok.Identifier("x")},
 		{offset = 2, value = tok.SimpleToken.Colon},

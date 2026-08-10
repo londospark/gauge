@@ -25,7 +25,7 @@ Everything else in the language serves that feature.
   statement is an expression returning unit.
 - **Newlines are pure separators.** They separate declarations and
   expressions and carry no value semantics.
-- **EBNF notation** (in grammar.ebnf): `{ x }` = zero or more, `[ x ]` = zero
+- **LBNF notation** (in grammar.cf): `{ x }` = zero or more, `[ x ]` = zero
   or one, `"a" .. "z"` = character range.
 
 ## 3. Lexical structure
@@ -44,9 +44,9 @@ continues with letters, digits, and underscores. A digit can never start one.
 Keywords are **hard** — reserved at the lexical level, not context-dependent.
 The current keyword is:
 
-| keyword | meaning |
-|---|---|
-| `proc` | procedure declaration marker |
+| keyword | meaning                      |
+|---------|------------------------------|
+| `proc`  | procedure declaration marker |
 
 Keyword matching is exact: `proc` is the keyword, `proc123` and `_proc` are
 plain identifiers. Every future keyword (`scoped`, `defer`) is added the same
