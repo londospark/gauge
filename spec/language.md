@@ -25,8 +25,10 @@ Everything else in the language serves that feature.
   statement is an expression returning unit.
 - **Newlines are pure separators.** They separate declarations and
   expressions and carry no value semantics.
-- **LBNF notation** (in grammar.cf): `{ x }` = zero or more, `[ x ]` = zero
-  or one, `"a" .. "z"` = character range.
+- **EBNF notation** in this document: `{ x }` = zero or more, `[ x ]` = zero
+  or one, `"a" .. "z"` = character range. The grammar proper in `grammar.cf`
+  is LBNF, where `[X]` means a list (zero or more) and optionals appear as
+  paired rules (`DeclInferred`/`DeclTyped`).
 
 ## 3. Lexical structure
 

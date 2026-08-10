@@ -29,9 +29,12 @@ Program. Program ::= [Decl] ;
 DeclInferred. Decl ::= Ident ":" ":" Expr ;
 DeclTyped.    Decl ::= Ident ":" Type ":" Expr ;
 
--- deferred: DeclProc.  Decl ::= Ident ":" ":" "proc" "(" ")" Block ;
--- deferred: DeclVar.   Decl ::= Ident ":=" Expr ;
--- deferred: DeclVarT.  Decl ::= Ident ":" Type "=" Expr ;
+-- The proc forms mirror the const forms: the type slot is optional, exactly
+-- as parse_decl consumes it (`ident : [type] :`). See spec/language.md §5.3.
+-- deferred: DeclProc.      Decl ::= Ident ":" ":" "proc" "(" ")" Block ;
+-- deferred: DeclProcTyped. Decl ::= Ident ":" Type ":" "proc" "(" ")" Block ;
+-- deferred: DeclVar.       Decl ::= Ident ":=" Expr ;
+-- deferred: DeclVarT.      Decl ::= Ident ":" Type "=" Expr ;
 
 -- --- Types ------------------------------------------------------------------
 
