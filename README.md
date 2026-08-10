@@ -2,7 +2,9 @@
 
 A small programming language inspired by **Jai** and **Odin**, written in Odin itself.
 
-> **Status:** lexer done, parser next.
+[![CI](https://github.com/londospark/gauge/actions/workflows/ci.yml/badge.svg)](https://github.com/londospark/gauge/actions/workflows/ci.yml)
+
+> **Status:** lexer and parser green — consts, types, expressions. Backend next.
 
 ## Design
 
