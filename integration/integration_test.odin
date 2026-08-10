@@ -206,6 +206,19 @@ test_e2e_unclosed_zone_swallows_decl :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_e2e_value_must_start_on_same_line :: proc(t: ^testing.T) {
+	// The §11.16 ruling, end to end: a newline between `::` and the
+	// value is significant (depth 0), so the parenthesised value on the
+	// next line has no declaration header to attach to. The lexer
+	// happily emits the newline; the parser must refuse.
+	src := "x ::\n(3 + 4)"
+
+	_, ok, stage := lex_and_parse(t, src)
+	testing.expectf(t, !ok, "want a parse error for a value starting on the next line")
+	testing.expectf(t, stage == "parse", "want the failure in the parser, got %s", stage)
+}
+
+@(test)
 test_e2e_zone_closes_then_newline_separates :: proc(t: ^testing.T) {
 	// The depth-0 boundary, end to end: once the `)` closes the zone,
 	// the next newline is significant again and a second declaration

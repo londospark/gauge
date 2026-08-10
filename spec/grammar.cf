@@ -9,12 +9,13 @@
 
 -- Newlines are tokens in the implementation (`NewLine`) but appear in no
 -- rule here: LBNF treats whitespace as insignificant, and gauge's newline
--- model is enforced outside the grammar. Inside `( )` a newline is
--- insignificant — the parser's `zoning_pre_parse` pass drops NewLine tokens
--- while its paren depth is > 0 — and outside parens a newline ends the
--- expression and separates declarations. Braces are never zones: `{ }`
--- stays newline-separated, which is what keeps `;` out of the language.
--- See spec/language.md §11.16.
+-- model is enforced outside the grammar. Inside `( )` (and, later, `[ ]`) a
+-- newline is insignificant — the parser's `zoning_pre_parse` pass drops
+-- NewLine tokens while its paren depth is > 0 — and outside parens a newline
+-- ends the expression and separates declarations. A declaration's value
+-- starts on the same line as its `::`. Braces are never zones: `{ }` stays
+-- newline-separated, which is what keeps `;` out of the language. See
+-- spec/language.md §11.16.
 
 -- --- Lexical structure ------------------------------------------------------
 

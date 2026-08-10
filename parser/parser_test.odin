@@ -1467,6 +1467,32 @@ test_parse_rejects_stray_closer_after_zone :: proc(t: ^testing.T) {
 	_ = program
 }
 
+@(test)
+test_parse_rejects_newline_before_value :: proc(t: ^testing.T) {
+	// x ::\n(3 + 4) — the §11.16 ruling: a declaration's value starts
+	// on the same line as its `::`. The newline at depth 0 ends the
+	// declaration header, so a parenthesised value on the next line has
+	// no header to attach to. Green today (the newline is neither `::`
+	// nor a type, so parse_decl's type-slot disambiguation refuses it);
+	// this pins the accident as a rule.
+	tokens := []tok.Token{
+		{offset = 0, value = tok.Identifier("x")},
+		{offset = 2, value = tok.SimpleToken.Colon},
+		{offset = 3, value = tok.SimpleToken.Colon},
+		{offset = 4, value = tok.SimpleToken.NewLine},
+		{offset = 5, value = tok.SimpleToken.LParen},
+		{offset = 6, value = tok.Number("3")},
+		{offset = 8, value = tok.SimpleToken.Plus},
+		{offset = 10, value = tok.Number("4")},
+		{offset = 11, value = tok.SimpleToken.RParen},
+		{offset = 12, value = tok.SimpleToken.EOF},
+	}
+
+	program, ok, _ := parse(tokens, new_test_arena(t))
+	testing.expectf(t, !ok, "want a parse error for a value starting on the next line, but parse succeeded")
+	_ = program
+}
+
 // --- Pre-pass unit tests ------------------------------------------------
 //
 // The pre-pass is the whole §11.16 decision in one function, so it earns

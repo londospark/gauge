@@ -469,6 +469,13 @@ out of the language. The trailing-operator invariant survives unchanged:
 `x :: 4 +` newline `2` is still an error, because outside a zone the newline
 ends the expression and the dangling `+` grabs no right operand.
 
+A declaration's value must start on the same line as its `::` —
+`x ::` newline `(3 + 4)` is an error: the newline ends the declaration
+header, so a value on the next line has no header to attach to. (This fell
+out of `parse_decl`'s type-slot disambiguation — the newline is neither
+`::` nor a type — but a default by accident is a rule in the making, so it
+is a rule.)
+
 **Implementation.** The decision lands as `zoning_pre_parse`, a token-
 filtering pre-pass at the head of `parse`: `NewLine` tokens are dropped
 while its paren depth is > 0, the depth clamps at 0 (a stray `)` poisons

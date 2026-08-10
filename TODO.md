@@ -113,6 +113,7 @@ multi-line decision lands with the paren-zone pre-pass in this commit.*
   parser runs, the depth clamps at 0 (a stray `)` poisons nothing), braces
   are never zones, and the lexer and parser are untouched. The deciding
   question — is `x :: 4 + 2` newline `+ 3` legal without parens? — answers
-  no. The OCaml-ward future path (trailing-operator continuation only, a
+  no, and a declaration's value must start on the same line as its `::`.
+  The OCaml-ward future path (trailing-operator continuation only, a
   meaning-preserving relaxation) and the lesson are recorded in §11.16, and
   the end-to-end `integration/` suite pins the pipeline.
