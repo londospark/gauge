@@ -1,7 +1,25 @@
 package parser
 
 import "core:testing"
+import "core:mem"
 import tok "../token"
+
+// new_test_arena returns an allocator backed by a fresh dynamic arena whose
+// lifetime is tied to the test. A registered cleanup destroys the arena
+// before the runner's leak check, so a parse that routes every allocation
+// through the arena reports a balanced alloc/free pair instead of leaks.
+new_test_arena :: proc(t: ^testing.T) -> mem.Allocator {
+	arena := new(mem.Dynamic_Arena)
+	mem.dynamic_arena_init(arena)
+	testing.cleanup(t, destroy_test_arena, arena)
+	return mem.dynamic_arena_allocator(arena)
+}
+
+destroy_test_arena :: proc(user_data: rawptr) {
+	arena := cast(^mem.Dynamic_Arena)user_data
+	mem.dynamic_arena_destroy(arena)
+	free(arena)
+}
 
 @(test)
 test_parse_const_number :: proc(t: ^testing.T) {
@@ -13,7 +31,7 @@ test_parse_const_number :: proc(t: ^testing.T) {
 		{offset = 7, value = tok.SimpleToken.EOF},
 	}
 
-	program, ok, err := parse(tokens, context.temp_allocator)
+	program, ok, err := parse(tokens, new_test_arena(t))
 	testing.expectf(t, ok, "parse failed: %s", err)
 	if !ok {
 		return
@@ -48,7 +66,7 @@ test_parse_const_string :: proc(t: ^testing.T) {
 		{offset = 20, value = tok.SimpleToken.EOF},
 	}
 
-	program, ok, err := parse(tokens, context.temp_allocator)
+	program, ok, err := parse(tokens, new_test_arena(t))
 	testing.expectf(t, ok, "parse failed: %s", err)
 	if !ok {
 		return
@@ -89,7 +107,7 @@ test_parse_empty_proc :: proc(t: ^testing.T) {
 		{offset = 18, value = tok.SimpleToken.EOF},
 	}
 
-	program, ok, err := parse(tokens, context.temp_allocator)
+	program, ok, err := parse(tokens, new_test_arena(t))
 	testing.expectf(t, ok, "parse failed: %s", err)
 	if !ok {
 		return
@@ -131,7 +149,7 @@ test_parse_proc_body :: proc(t: ^testing.T) {
 		{offset = 35, value = tok.SimpleToken.EOF},
 	}
 
-	program, ok, err := parse(tokens, context.temp_allocator)
+	program, ok, err := parse(tokens, new_test_arena(t))
 	testing.expectf(t, ok, "parse failed: %s", err)
 	if !ok {
 		return
@@ -177,7 +195,7 @@ test_parse_const_arithmetic_reference :: proc(t: ^testing.T) {
 		{offset = 29, value = tok.SimpleToken.EOF},
 	}
 
-	program, ok, err := parse(tokens, context.temp_allocator)
+	program, ok, err := parse(tokens, new_test_arena(t))
 	testing.expectf(t, ok, "parse failed: %s", err)
 	if !ok {
 		return
@@ -242,7 +260,7 @@ test_parse_precedence :: proc(t: ^testing.T) {
 		{offset = 14, value = tok.SimpleToken.EOF},
 	}
 
-	program, ok, err := parse(tokens, context.temp_allocator)
+	program, ok, err := parse(tokens, new_test_arena(t))
 	testing.expectf(t, ok, "parse failed: %s", err)
 	if !ok {
 		return
@@ -297,7 +315,7 @@ test_parse_bracketed_const :: proc(t: ^testing.T) {
 		{offset = 16, value = tok.SimpleToken.EOF},
 	}
 
-	program, ok, err := parse(tokens, context.temp_allocator)
+	program, ok, err := parse(tokens, new_test_arena(t))
 	testing.expectf(t, ok, "parse failed: %s", err)
 	if !ok {
 		return
@@ -347,7 +365,7 @@ test_parse_rejects_stray_close_paren :: proc(t: ^testing.T) {
 		{offset = 6, value = tok.SimpleToken.EOF},
 	}
 
-	program, ok, _ := parse(tokens, context.temp_allocator)
+	program, ok, _ := parse(tokens, new_test_arena(t))
 	testing.expectf(t, !ok, "want a parse error for a stray close paren, but parse succeeded")
 	// The parser returns any partially-built program with ok=false; the
 	// caller must gate on ok, so a non-nil program here is not an error.
@@ -368,7 +386,7 @@ test_parse_unary_minus :: proc(t: ^testing.T) {
 		{offset = 7, value = tok.SimpleToken.EOF},
 	}
 
-	program, ok, err := parse(tokens, context.temp_allocator)
+	program, ok, err := parse(tokens, new_test_arena(t))
 	testing.expectf(t, ok, "parse failed: %s", err)
 	if !ok {
 		return
@@ -413,7 +431,7 @@ test_parse_unary_minus_binds_looser_than_plus :: proc(t: ^testing.T) {
 		{offset = 11, value = tok.SimpleToken.EOF},
 	}
 
-	program, ok, err := parse(tokens, context.temp_allocator)
+	program, ok, err := parse(tokens, new_test_arena(t))
 	testing.expectf(t, ok, "parse failed: %s", err)
 	if !ok {
 		return
@@ -459,7 +477,7 @@ test_parse_double_unary_minus :: proc(t: ^testing.T) {
 		{offset = 8, value = tok.SimpleToken.EOF},
 	}
 
-	program, ok, err := parse(tokens, context.temp_allocator)
+	program, ok, err := parse(tokens, new_test_arena(t))
 	testing.expectf(t, ok, "parse failed: %s", err)
 	if !ok {
 		return
@@ -510,7 +528,7 @@ test_parse_unary_minus_binds_tighter_than_star :: proc(t: ^testing.T) {
 		{offset = 11, value = tok.SimpleToken.EOF},
 	}
 
-	program, ok, err := parse(tokens, context.temp_allocator)
+	program, ok, err := parse(tokens, new_test_arena(t))
 	testing.expectf(t, ok, "parse failed: %s", err)
 	if !ok {
 		return
@@ -561,7 +579,7 @@ test_parse_rejects_trailing_operator :: proc(t: ^testing.T) {
 		{offset = 8, value = tok.SimpleToken.EOF},
 	}
 
-	program, ok, _ := parse(tokens, context.temp_allocator)
+	program, ok, _ := parse(tokens, new_test_arena(t))
 	testing.expectf(t, !ok, "want a parse error for a trailing operator, but parse succeeded")
 	_ = program
 }
@@ -581,7 +599,7 @@ test_parse_rejects_unterminated_group :: proc(t: ^testing.T) {
 		{offset = 11, value = tok.SimpleToken.EOF},
 	}
 
-	program, ok, _ := parse(tokens, context.temp_allocator)
+	program, ok, _ := parse(tokens, new_test_arena(t))
 	testing.expectf(t, !ok, "want a parse error for an unterminated group, but parse succeeded")
 	_ = program
 }
@@ -599,7 +617,7 @@ test_parse_rejects_empty_group :: proc(t: ^testing.T) {
 		{offset = 7, value = tok.SimpleToken.EOF},
 	}
 
-	program, ok, _ := parse(tokens, context.temp_allocator)
+	program, ok, _ := parse(tokens, new_test_arena(t))
 	testing.expectf(t, !ok, "want a parse error for an empty group, but parse succeeded")
 	_ = program
 }
@@ -614,7 +632,7 @@ test_parse_rejects_missing_double_colon :: proc(t: ^testing.T) {
 		{offset = 3, value = tok.SimpleToken.EOF},
 	}
 
-	program, ok, _ := parse(tokens, context.temp_allocator)
+	program, ok, _ := parse(tokens, new_test_arena(t))
 	testing.expectf(t, !ok, "want a parse error for a missing `::`, but parse succeeded")
 	_ = program
 }
@@ -634,7 +652,7 @@ test_parse_typed_const_pointer :: proc(t: ^testing.T) {
 		{offset = 11, value = tok.SimpleToken.EOF},
 	}
 
-	program, ok, err := parse(tokens, context.temp_allocator)
+	program, ok, err := parse(tokens, new_test_arena(t))
 	testing.expectf(t, ok, "parse failed: %s", err)
 	if !ok {
 		return
@@ -684,7 +702,7 @@ test_parse_typed_const_double_pointer :: proc(t: ^testing.T) {
 		{offset = 12, value = tok.SimpleToken.EOF},
 	}
 
-	program, ok, err := parse(tokens, context.temp_allocator)
+	program, ok, err := parse(tokens, new_test_arena(t))
 	testing.expectf(t, ok, "parse failed: %s", err)
 	if !ok {
 		return
@@ -731,7 +749,7 @@ test_parse_typed_const_name :: proc(t: ^testing.T) {
 		{offset = 10, value = tok.SimpleToken.EOF},
 	}
 
-	program, ok, err := parse(tokens, context.temp_allocator)
+	program, ok, err := parse(tokens, new_test_arena(t))
 	testing.expectf(t, ok, "parse failed: %s", err)
 	if !ok {
 		return
@@ -859,7 +877,7 @@ test_non_nil_invariant_across_parse :: proc(t: ^testing.T) {
 		{offset = 42, value = tok.SimpleToken.EOF},
 	}
 
-	program, ok, err := parse(tokens, context.temp_allocator)
+	program, ok, err := parse(tokens, new_test_arena(t))
 	testing.expectf(t, ok, "parse failed: %s", err)
 	if !ok {
 		return
@@ -878,38 +896,124 @@ test_non_nil_invariant_across_parse :: proc(t: ^testing.T) {
 
 @(test)
 test_new_binary_rejects_nil_operands :: proc(t: ^testing.T) {
-	n := new_binary(.Add, nil, nil, 0, context.temp_allocator)
+	n := new_binary(.Add, nil, nil, 0, new_test_arena(t))
 	testing.expectf(t, n == nil, "new_binary must reject nil operands")
 }
 
 @(test)
 test_new_unary_rejects_nil_operand :: proc(t: ^testing.T) {
-	n := new_unary(.Minus, nil, 0, context.temp_allocator)
+	n := new_unary(.Minus, nil, 0, new_test_arena(t))
 	testing.expectf(t, n == nil, "new_unary must reject a nil operand")
 }
 
 @(test)
 test_new_assign_rejects_nil_value :: proc(t: ^testing.T) {
-	n := new_assign("x", nil, 0, context.temp_allocator)
+	n := new_assign("x", nil, 0, new_test_arena(t))
 	testing.expectf(t, n == nil, "new_assign must reject a nil value")
 }
 
 @(test)
 test_new_const_rejects_nil_value :: proc(t: ^testing.T) {
-	n := new_const("x", nil, nil, 0, context.temp_allocator)
+	n := new_const("x", nil, nil, 0, new_test_arena(t))
 	testing.expectf(t, n == nil, "new_const must reject a nil value")
 }
 
 @(test)
 test_new_const_allows_nil_type :: proc(t: ^testing.T) {
 	// The one deliberate exception: Const.type is nilable (inferred).
-	value := new_number("5", 0, context.temp_allocator)
-	n := new_const("x", nil, value, 0, context.temp_allocator)
+	value := new_number("5", 0, new_test_arena(t))
+	n := new_const("x", nil, value, 0, new_test_arena(t))
 	testing.expectf(t, n != nil, "new_const must allow a nil type (inferred const)")
 }
 
 @(test)
 test_new_proc_rejects_nil_body :: proc(t: ^testing.T) {
-	n := new_proc("main", nil, 0, context.temp_allocator)
+	n := new_proc("main", nil, 0, new_test_arena(t))
 	testing.expectf(t, n == nil, "new_proc must reject a nil body")
+}
+
+@(test)
+test_parse_type_pointer_offsets :: proc(t: ^testing.T) {
+	// x : ^^int : 5 — the creating-token convention says each
+	// TypePointer.offset is the byte of its own `^`, not the byte
+	// after it. The ^s are at 4 and 5.
+	tokens := []tok.Token{
+		{offset = 0, value = tok.Identifier("x")},
+		{offset = 2, value = tok.SimpleToken.Colon},
+		{offset = 4, value = tok.SimpleToken.Hat},
+		{offset = 5, value = tok.SimpleToken.Hat},
+		{offset = 6, value = tok.Identifier("int")},
+		{offset = 9, value = tok.SimpleToken.Colon},
+		{offset = 11, value = tok.Number("5")},
+		{offset = 12, value = tok.SimpleToken.EOF},
+	}
+
+	program, ok, err := parse(tokens, new_test_arena(t))
+	testing.expectf(t, ok, "parse failed: %s", err)
+	if !ok {
+		return
+	}
+
+	#partial switch d in program.decls[0]^ {
+	case Const:
+		#partial switch ty in d.type^ {
+		case TypePointer:
+			testing.expectf(t, ty.offset == 4, "outer TypePointer offset want 4 (the first ^), got %d", ty.offset)
+			#partial switch inner in ty.pointee^ {
+			case TypePointer:
+				testing.expectf(t, inner.offset == 5, "inner TypePointer offset want 5 (the second ^), got %d", inner.offset)
+			case:
+				testing.expect(t, false, "inner should be a pointer")
+			}
+		case:
+			testing.expect(t, false, "type should be a double pointer")
+		}
+	case:
+		testing.expect(t, false, "declaration should be a constant")
+	}
+}
+
+@(test)
+test_allocator_discipline :: proc(t: ^testing.T) {
+	// A successful parse must route every allocation through the passed
+	// allocator. While context.allocator points at a fresh tracking
+	// allocator, parse into a fixed-buffer arena: if any allocation falls
+	// through to context.allocator, the tracker catches it. The context
+	// swap is scoped so the assertions run with the ambient allocator.
+	backing := context.allocator
+
+	tracker: mem.Tracking_Allocator
+	mem.tracking_allocator_init(&tracker, backing)
+	defer mem.tracking_allocator_destroy(&tracker)
+
+	buffer := make([]byte, 1 << 16, backing)
+	defer delete(buffer, backing)
+
+	arena: mem.Arena
+	mem.arena_init(&arena, buffer)
+
+	tokens := []tok.Token{
+		{offset = 0, value = tok.Identifier("x")},
+		{offset = 2, value = tok.SimpleToken.Colon},
+		{offset = 3, value = tok.SimpleToken.Colon},
+		{offset = 5, value = tok.Number("42")},
+		{offset = 7, value = tok.SimpleToken.EOF},
+	}
+
+	program: ^Program
+	ok: bool
+	err: string
+	{
+		prev := context.allocator
+		context.allocator = mem.tracking_allocator(&tracker)
+		defer context.allocator = prev
+
+		program, ok, err = parse(tokens, mem.arena_allocator(&arena))
+	}
+
+	testing.expectf(t, ok, "parse failed: %s", err)
+	testing.expectf(t, len(tracker.allocation_map) == 0,
+		"allocator discipline broken: %d allocation(s) fell through to context.allocator",
+		len(tracker.allocation_map))
+	_ = program
 }

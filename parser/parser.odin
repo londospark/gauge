@@ -1,6 +1,7 @@
 package parser
 
 import "core:fmt"
+import "core:mem"
 import tok "../token"
 
 // The error message lives on the Parser so parse functions can return
@@ -243,10 +244,10 @@ to_binary_operator :: proc(simple: tok.SimpleToken) -> BinaryOperator {
 	case .Star:  return .Multiply
 	case .Slash: return .Divide
 	}
-	return .Add
+	panic(fmt.tprintf("Someone passed %v to us and that's not a binary operator", simple))
 }
 
-parse_expression :: proc(p: ^Parser, minimum_binding_power: int, allocator := context.allocator) -> (expr: ^Expr, ok: bool) {
+parse_expression :: proc(p: ^Parser, minimum_binding_power: int, allocator: mem.Allocator) -> (expr: ^Expr, ok: bool) {
 	lhs := parse_prefix(p, allocator) or_return
 	
 	for {
@@ -254,11 +255,11 @@ parse_expression :: proc(p: ^Parser, minimum_binding_power: int, allocator := co
 		if bp.left < minimum_binding_power || !ok do return lhs, true
 		operator := advance(p)
 		rhs := parse_expression(p, bp.right, allocator) or_return
-		lhs = parse_infix(p, operator, lhs, rhs) or_return
+		lhs = parse_infix(p, operator, lhs, rhs, allocator) or_return
 	}
 }
 
-parse_prefix :: proc(p: ^Parser, allocator := context.allocator) -> (expr: ^Expr, ok: bool) {
+parse_prefix :: proc(p: ^Parser, allocator: mem.Allocator) -> (expr: ^Expr, ok: bool) {
 	token := current(p)
 	#partial switch v in token.value {
 	case tok.Number:
@@ -298,33 +299,48 @@ parse_prefix :: proc(p: ^Parser, allocator := context.allocator) -> (expr: ^Expr
 	return nil, false
 }
 
-parse_infix :: proc(p: ^Parser, operator: tok.Token, left: ^Expr, right: ^Expr, allocator := context.allocator) -> (expr: ^Expr, ok: bool) {
+parse_infix :: proc(p: ^Parser, operator: tok.Token, left: ^Expr, right: ^Expr, allocator: mem.Allocator) -> (expr: ^Expr, ok: bool) {
 	return new_binary(to_binary_operator(operator.value.(tok.SimpleToken)), left, right, operator.offset, allocator), true
 }
 
-parse_args :: proc(p: ^Parser, allocator := context.allocator) -> (args: [dynamic]^Expr, ok: bool) {
+parse_args :: proc(p: ^Parser, allocator: mem.Allocator) -> (args: [dynamic]^Expr, ok: bool) {
 	panic("todo: parse_args")
 }
 
 // --- blocks, declarations, program ---
 
-parse_block :: proc(p: ^Parser, allocator := context.allocator) -> (expr: ^Expr, ok: bool) {
+parse_block :: proc(p: ^Parser, allocator: mem.Allocator) -> (expr: ^Expr, ok: bool) {
 	panic("todo: parse_block")
 }
 
-parse_decl :: proc(p: ^Parser, allocator := context.allocator) -> (decl: ^Expr, ok: bool) {
+parse_type :: proc(p: ^Parser, allocator: mem.Allocator) -> (type: ^Type, ok: bool) {
+	token := current(p)
+	if match_simple(p, .Hat) {
+		pointee := parse_type(p, allocator) or_return
+		return new_pointer(pointee, token.offset, allocator), true
+	} else {
+		name, offset := expect_identifier(p) or_return
+		return new_type_name(name, token.offset, allocator), true
+	}
+}
+
+parse_decl :: proc(p: ^Parser, allocator: mem.Allocator) -> (decl: ^Expr, ok: bool) {
 	ident, offset := expect_identifier(p) or_return
 	expect_simple(p, .Colon) or_return
-	expect_simple(p, .Colon) or_return
+	type: ^Type
+	if !match_simple(p, .Colon) {
+		type = parse_type(p, allocator) or_return
+		expect_simple(p, .Colon) or_return
+	}
 
 	if match_keyword(p, .Proc) do panic("todo: Procedures not implemented yet")
 
 	value := parse_expression(p, 0, allocator) or_return
 
-	return new_const(ident, nil, value, offset, allocator), true
+	return new_const(ident, type, value, offset, allocator), true
 }
 
-parse_program :: proc(p: ^Parser, allocator := context.allocator) -> (program: ^Program, ok: bool) {
+parse_program :: proc(p: ^Parser, allocator: mem.Allocator) -> (program: ^Program, ok: bool) {
 	program = new(Program, allocator)
 	program.decls = make([dynamic]^Expr, allocator)
 
@@ -339,7 +355,7 @@ parse_program :: proc(p: ^Parser, allocator := context.allocator) -> (program: ^
 	return program, true
 }
 
-parse :: proc(tokens: []tok.Token, allocator := context.allocator) -> (program: ^Program, ok: bool, err: string) {
+parse :: proc(tokens: []tok.Token, allocator: mem.Allocator) -> (program: ^Program, ok: bool, err: string) {
 	p := Parser { tokens = tokens }
 	program, ok = parse_program(&p, allocator)
 	return program, ok, p.err
@@ -347,57 +363,72 @@ parse :: proc(tokens: []tok.Token, allocator := context.allocator) -> (program: 
 
 // --- node construction ---
 
-new_expr :: proc(variant: Expr, allocator := context.allocator) -> ^Expr {
+new_expr :: proc(variant: Expr, allocator: mem.Allocator) -> ^Expr {
 	expr := new(Expr, allocator)
 	expr^ = variant
 	return expr
 }
 
-new_unit :: proc(offset: int, allocator := context.allocator) -> ^Expr {
+new_unit :: proc(offset: int, allocator: mem.Allocator) -> ^Expr {
 	return new_expr(Unit { node = Node { offset = offset } }, allocator)
 }
 
-new_number :: proc(value: tok.Number, offset: int, allocator := context.allocator) -> ^Expr {
+new_number :: proc(value: tok.Number, offset: int, allocator: mem.Allocator) -> ^Expr {
 	return new_expr(Number { node = Node { offset = offset }, value = value }, allocator)
 }
 
-new_string :: proc(value: tok.StringLiteral, offset: int, allocator := context.allocator) -> ^Expr {
+new_string :: proc(value: tok.StringLiteral, offset: int, allocator: mem.Allocator) -> ^Expr {
 	return new_expr(String { node = Node { offset = offset }, value = value }, allocator)
 }
 
-new_ident :: proc(name: tok.Identifier, offset: int, allocator := context.allocator) -> ^Expr {
+new_ident :: proc(name: tok.Identifier, offset: int, allocator: mem.Allocator) -> ^Expr {
 	return new_expr(Ident { node = Node { offset = offset }, name = name }, allocator)
 }
 
-new_unary :: proc(operator: UnaryOperator, operand: ^Expr, offset: int, allocator := context.allocator) -> ^Expr {
+new_unary :: proc(operator: UnaryOperator, operand: ^Expr, offset: int, allocator: mem.Allocator) -> ^Expr {
 	if operand == nil do return nil
 	return new_expr(Unary { node = Node { offset = offset }, operator = operator, operand = operand }, allocator)
 }
 
-new_binary :: proc(operator: BinaryOperator, lhs: ^Expr, rhs: ^Expr, offset: int, allocator := context.allocator) -> ^Expr {
+new_binary :: proc(operator: BinaryOperator, lhs: ^Expr, rhs: ^Expr, offset: int, allocator: mem.Allocator) -> ^Expr {
 	if lhs == nil || rhs == nil do return nil
 	return new_expr(Binary { node = Node { offset = offset }, lhs = lhs, rhs = rhs, operator = operator }, allocator)
 }
 
-new_assign :: proc(name: tok.Identifier, value: ^Expr, offset: int, allocator := context.allocator) -> ^Expr {
+new_assign :: proc(name: tok.Identifier, value: ^Expr, offset: int, allocator: mem.Allocator) -> ^Expr {
 	if value == nil do return nil
 	return new_expr(Assign { node = Node { offset = offset }, name = name, value = value }, allocator)
 }
 
-new_call :: proc(name: tok.Identifier, args: [dynamic]^Expr, offset: int, allocator := context.allocator) -> ^Expr {
+new_call :: proc(name: tok.Identifier, args: [dynamic]^Expr, offset: int, allocator: mem.Allocator) -> ^Expr {
 	return new_expr(Call { node = Node { offset = offset }, name = name, args = args }, allocator)
 }
 
-new_block :: proc(body: [dynamic]^Expr, offset: int, allocator := context.allocator) -> ^Expr {
+new_block :: proc(body: [dynamic]^Expr, offset: int, allocator: mem.Allocator) -> ^Expr {
 	return new_expr(Block { node = Node { offset = offset }, body = body }, allocator)
 }
 
-new_const :: proc(name: tok.Identifier, type: ^Type, value: ^Expr, offset: int, allocator := context.allocator) -> ^Expr {
+new_const :: proc(name: tok.Identifier, type: ^Type, value: ^Expr, offset: int, allocator: mem.Allocator) -> ^Expr {
 	if value == nil do return nil
 	return new_expr(Const { node = Node { offset = offset }, name = name, type = type, value = value }, allocator)
 }
 
-new_proc :: proc(name: tok.Identifier, body: ^Block, offset: int, allocator := context.allocator) -> ^Expr {
+new_proc :: proc(name: tok.Identifier, body: ^Block, offset: int, allocator: mem.Allocator) -> ^Expr {
 	if body == nil do return nil
 	return new_expr(Proc { node = Node { offset = offset }, name = name, body = body }, allocator)
+}
+
+new_type :: proc(variant: Type, allocator: mem.Allocator) -> ^Type {
+	type := new(Type, allocator)
+	type^ = variant
+	return type
+}
+
+new_pointer :: proc(pointee: ^Type, offset: int, allocator: mem.Allocator) -> ^Type {
+	if pointee == nil do return nil
+	return new_type(TypePointer { node = Node { offset = offset }, pointee = pointee }, allocator)
+}
+
+new_type_name :: proc(name: tok.Identifier, offset: int, allocator: mem.Allocator) -> ^Type {
+	return new_type(TypeName { node = Node { offset = offset }, name = name }, allocator)
 }
