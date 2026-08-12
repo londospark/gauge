@@ -30,18 +30,30 @@ decisions live in §11.
 - **Slices** — `[]T`; carries the string-type fork. §11.17 settles the
   representation (pointer + length); whether strings are a distinct
   builtin or `[]u8` is decided here.
-- **Tuples, unions, generic types** — composite types for the type
-  grammar.
+- **Discriminated unions** — first-class DUs with exhaustive `switch`;
+  syntax explored in `docs/type_system.md` §6. (Tuples are refused —
+  see §4 of the same doc.)
+- **Generic types** — parametric polymorphism; the HM generalisation in
+  `docs/type_system.md` §3 is the foundation.
 - **Multi-char operators** — `->`, `:=`, `==` and friends; lexer, token
   table, and precedence rows together.
 - **`if` / `while` / `return` as expressions** — everything-is-an-expression
   stays true.
+- **`switch`** — exhaustive matching for DUs; pulled in by the DU slice
+  (`docs/type_system.md` §6).
 - **Typed parameters** — `proc(x: int) -> int`; grows the deferred proc
   forms of §5.3.
-- **Structs / unions / enums** — user-defined types.
+- **Multiple return values** — `-> (int, string)` return lists,
+  `a, b := f()` multi-binding; no tuple type. See `docs/type_system.md`
+  §4.
+- **Structs / enums** — user-defined types. (Unions are DUs — see
+  `docs/type_system.md` §6.)
 - **Discard sugar** — `_`-binding and friends.
 - **Metaprogramming / comptime** — a decision point, not yet an
   implementation.
+- **Semantic checker** — the pass after the parser: name resolution, HM
+  typing, and constant folding. Designed in `docs/type_system.md`; build
+  order in its §10.
 
 ## Next up
 
@@ -102,7 +114,9 @@ multi-line decision lands with the paren-zone pre-pass in this commit.*
 - Package split (`lexer/`, `parser/`) with table-driven lexer tests.
 - Design docs — `docs/design.md` (north star + principles),
   `docs/scoping.md` (the scoped model, RAII comparison, risks),
-  `docs/scoping_examples.md` (Dear ImGui + Clay walk-throughs).
+  `docs/scoping_examples.md` (Dear ImGui + Clay walk-throughs),
+  `docs/type_system.md` (semantic checking: HM + value restriction,
+  multi-return, distinct types, DUs, casts).
 - **Basic parser (consts, types, expressions)** — recursive descent for
   declarations, Pratt for expressions, producing the AST in `parser/`.
   Inferred and typed consts, the type grammar (`^int`, `^^int`), binary

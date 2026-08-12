@@ -244,7 +244,11 @@ Blocks, procedures, calls, assignment, `()` unit, variables (`:=`), slices,
 tuples, unions, generic types, multi-char operators, `if`/`while`/`return`
 as expressions, typed parameters, discard sugar, and comptime.
 
-See [TODO.md](../TODO.md) for the build roadmap.
+See [TODO.md](../TODO.md) for the build roadmap. The type system —
+semantic checking, HM with value restriction, multiple return values,
+distinct types, discriminated unions, and casts — is designed in
+[docs/type_system.md](../docs/type_system.md), ahead of its
+implementation.
 
 ## 11. Design decisions and lessons learned
 
