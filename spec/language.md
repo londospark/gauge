@@ -479,6 +479,12 @@ the newline is neither `::` nor a type — while the tail rule is a new
 check in the parse loop. A default by accident and a deliberate
 completion; both are now rules.)
 
+Blocks inherit the same rule: a statement occupies its line, ending at a
+newline or the block's `}`. The escape hatch for putting more than one
+statement on a line is `;` — recorded, and deliberately deferred: the
+newline model is primary, and `;` is an unrecognised character until the
+day it is claimed.
+
 **Implementation.** The decision lands as `zoning_pre_parse`, a token-
 filtering pre-pass at the head of `parse`: `NewLine` tokens are dropped
 while its paren depth is > 0, the depth clamps at 0 (a stray `)` poisons
@@ -594,3 +600,58 @@ rule in grammar.cf, and `x : T = expr` (`DeclVarT`) already covers
 explicit initialisation. Open at implementation time: the AST shape (a
 Var node carrying the zero default) and how the failure gate reports a
 failed acquisition (an error return vs a zero value).
+
+### 11.20 Codegen: value domain and the first backend
+
+**Decision.** The first backend emits C, straight from the AST, with no
+IR — `cc` is the runtime, so gauge programs compile and run. The
+provisional value domain: dotless numbers emit as C `int`, dotted numbers
+as `double`, literals verbatim; C's implicit conversions bridge the split.
+Strings emit as the §11.17 pointer+length pair, never C strings — the
+compiler computes the length at compile time.
+
+**Forward references.** Consts may reference forward (§11.3); C demands
+declaration-before-use. Because gauge consts are pure, the emitter orders
+declarations by dependency (a topological sort over identifier
+references) — a semantics-preserving reordering.
+
+**Backends.** C is the first of potentially several. One backend emits
+from the AST; the *second* backend is what earns an IR — the refactor to
+AST → IR → backends happens then, never before. The optimising-backend
+landscape, for when the choice arrives: LLVM (best codegen, heavyweight
+commitment — when the language is real), Cranelift (fast, embeddable,
+good-enough codegen; the JIT/embedded choice), QBE (a few-thousand-line
+SSA backend for hobby compilers — the learning choice), libgccjit
+(awkward but real), a bytecode VM (instruction design, semantics made
+precise — a compiled backend, distinct from the rejected tree-walker),
+WASM (a constrained target; pointer+length strings map onto linear
+memory), and native asm (the deepest, slowest; ill-suited to a C-interop
+language's FFI tax). Until then, `cc -O2` is the optimising backend: C
+emission delegates optimisation to the C compiler by design.
+
+### 11.21 Debug info: debug the gauge source, not the generated C
+
+**Decision.** Gauge programs debug at the gauge-source level. The
+mechanism is the source-to-C trick: the codegen emits `#line` directives
+mapping each generated line back to its gauge source file and line, and
+`cc -g` records gauge coordinates in the debug metadata — GDB steps
+through gauge lines and breaks on gauge source. On Linux the container is
+DWARF; on Windows/MSVC it is PDB; the format is the target's business,
+and the same `#line` mechanism feeds both.
+
+**The offset→line boundary.** Gauge positions are byte offsets; debug
+metadata wants line numbers. The codegen consults a source line table
+(offset → line) built when the source loads — the same convert-at-the-
+boundary pattern as §11.17's cstring story: offsets stay the internal
+truth.
+
+**Discipline.** Keep the first codegen dumb for the debugger's sake:
+emit gauge identifiers verbatim (GDB shows `KiB`, not `g_17`), compile
+with `-g -O0`/`-Og` so the mapping stays 1:1. Variable-level inspection
+works while gauge values map directly to C objects; it degrades the
+moment codegen does clever transforms — decide deliberately before
+getting clever. Full hand-rolled DWARF (types, locations, live ranges) is
+only worth it when the front end outgrows the C mapping, and then ideally
+via LLVM's DIBuilder if that backend ever exists. A bonus: `#line` makes
+cc's diagnostics point at gauge source too — the semantic-checker-is-cc
+story gains gauge-coordinate errors.

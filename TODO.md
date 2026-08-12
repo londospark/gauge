@@ -42,11 +42,18 @@ decisions live in §11.
 - **Discard sugar** — `_`-binding and friends.
 - **Metaprogramming / comptime** — a decision point, not yet an
   implementation.
-- **C codegen** — compile to C. Strings ship as pointer + length, never C
-  strings (§11.17).
 
 ## Next up
 
+- **C codegen (first slice: consts + expressions)** — the first backend
+  emits C from the AST, no IR; `cc` is the runtime, so gauge programs
+  compile and run (§11.20). Provisional value domain: dotless → `int`,
+  dotted → `double`, verbatim emission. Consts emit in dependency order
+  (forward refs are legal, C demands declaration-before-use; consts are
+  pure, so reordering is sound). Strings emit as the §11.17 pointer +
+  length pair, never C strings. The demo writes C, `cc` builds, the
+  binary runs — the feel loop. Later slices grow the backend into
+  blocks, procs, calls, and assignment.
 - **Blocks and procedures** — `{ ... }` blocks and the `proc` dispatch
   (`name :: proc() { }`). The `proc` keyword, the `Block`/`Proc` AST
   shapes, and the two disabled proc tests already exist; `parse_block` and
