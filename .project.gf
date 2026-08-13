@@ -1,5 +1,5 @@
 [executable]
-path=parser.test.bin
+path=compiler.test.bin
 arguments=
 ask_directory=1
 

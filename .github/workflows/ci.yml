@@ -31,17 +31,9 @@ jobs:
       - name: Build
         run: odin build .
 
-      - name: Test lexer
+      - name: Test compiler
         if: always()
-        run: odin test lexer/ -define:ODIN_TEST_JSON_REPORT=lexer.json
-
-      - name: Test parser
-        if: always()
-        run: odin test parser/ -define:ODIN_TEST_JSON_REPORT=parser.json
-
-      - name: Test integration
-        if: always()
-        run: odin test integration/ -define:ODIN_TEST_JSON_REPORT=integration.json
+        run: odin test compiler/ -define:ODIN_TEST_JSON_REPORT=compiler.json
 
       - name: Convert test reports to JUnit
         if: always()

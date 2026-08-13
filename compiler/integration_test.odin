@@ -1,7 +1,7 @@
-package integration
+package compiler
 
 // End-to-end tests: a source string through the real pipeline — lexer,
-// zone pre-pass, parser. The unit suites hand-build token slices, so they
+// zone pre-pass, parser. The unit tests hand-build token slices, so they
 // cannot catch a drift between what the lexer emits and what the parser
 // expects; these can. The shapes chosen are the awkward ones: things the
 // two stages see differently, or where a naive implementation would
@@ -9,113 +9,23 @@ package integration
 
 import "core:testing"
 import "core:mem"
-import "../lexer"
-import "../parser"
-import tok "../token"
-
-// new_test_arena returns an allocator backed by a fresh dynamic arena whose
-// lifetime is tied to the test — the same discipline the parser suite uses,
-// so a full pipeline run reports a balanced alloc/free pair instead of
-// leaks.
-new_test_arena :: proc(t: ^testing.T) -> mem.Allocator {
-	arena := new(mem.Dynamic_Arena)
-	mem.dynamic_arena_init(arena)
-	testing.cleanup(t, destroy_test_arena, arena)
-	return mem.dynamic_arena_allocator(arena)
-}
-
-destroy_test_arena :: proc(user_data: rawptr) {
-	arena := cast(^mem.Dynamic_Arena)user_data
-	mem.dynamic_arena_destroy(arena)
-	free(arena)
-}
 
 // lex_and_parse runs a source string through the whole front end.
 // failed_stage names where it broke ("lex" or "parse") so a test can pin
 // the stage, not just the failure.
-lex_and_parse :: proc(t: ^testing.T, src: string) -> (program: ^parser.Program, ok: bool, failed_stage: string) {
+lex_and_parse :: proc(t: ^testing.T, src: string) -> (program: ^Program, ok: bool, failed_stage: string) {
 	arena := new_test_arena(t)
-	lexer_state := lexer.make_lexer(src)
-	tokens, lex_ok := lexer.lex(&lexer_state, arena)
+	lexer_state := make_lexer(src)
+	tokens, lex_ok := lex(&lexer_state, arena)
 	if !lex_ok {
 		return nil, false, "lex"
 	}
 
-	program, ok, _ = parser.parse(tokens[:], arena)
+	program, ok, _ = parse(tokens[:], arena)
 	if !ok {
 		return program, false, "parse"
 	}
 	return program, true, ""
-}
-
-// --- assertion helpers -------------------------------------------------
-//
-// Each helper asserts the expected node and hands the test whatever it
-// needs next, so assertions read top-down instead of nesting. The `_at`
-// variants also pin the node's byte offset.
-
-expect_decls :: proc(t: ^testing.T, program: ^parser.Program, count: int) {
-	testing.expectf(t, len(program.decls) == count, "want %d declaration(s), got %d", count, len(program.decls))
-}
-
-expect_const :: proc(t: ^testing.T, decl: ^parser.Expr, name: tok.Identifier) -> ^parser.Expr {
-	#partial switch d in decl^ {
-	case parser.Const:
-		testing.expectf(t, d.name == name, "want const %q, got %q", name, d.name)
-		return d.value
-	case:
-		testing.expectf(t, false, "want a const named %q", name)
-	}
-	return nil
-}
-
-expect_binary :: proc(t: ^testing.T, expr: ^parser.Expr, operator: parser.BinaryOperator) -> (lhs: ^parser.Expr, rhs: ^parser.Expr) {
-	#partial switch v in expr^ {
-	case parser.Binary:
-		testing.expectf(t, v.operator == operator, "want binary %v, got %v", operator, v.operator)
-		return v.lhs, v.rhs
-	case:
-		testing.expectf(t, false, "want a binary %v", operator)
-	}
-	return nil, nil
-}
-
-expect_binary_at :: proc(t: ^testing.T, expr: ^parser.Expr, operator: parser.BinaryOperator, offset: int) -> (lhs: ^parser.Expr, rhs: ^parser.Expr) {
-	lhs, rhs = expect_binary(t, expr, operator)
-	#partial switch v in expr^ {
-	case parser.Binary:
-		testing.expectf(t, v.offset == offset, "want %v at byte %d, got %d", operator, offset, v.offset)
-	}
-	return lhs, rhs
-}
-
-expect_number :: proc(t: ^testing.T, expr: ^parser.Expr, value: tok.Number) {
-	#partial switch v in expr^ {
-	case parser.Number:
-		testing.expectf(t, v.value == value, "want number %q, got %q", value, v.value)
-	case:
-		testing.expectf(t, false, "want a number %q", value)
-	}
-}
-
-expect_string :: proc(t: ^testing.T, expr: ^parser.Expr, value: tok.StringLiteral) {
-	#partial switch v in expr^ {
-	case parser.String:
-		testing.expectf(t, v.value == value, "want string %q, got %q", value, v.value)
-	case:
-		testing.expectf(t, false, "want a string literal")
-	}
-}
-
-expect_unary :: proc(t: ^testing.T, expr: ^parser.Expr, operator: parser.UnaryOperator) -> ^parser.Expr {
-	#partial switch v in expr^ {
-	case parser.Unary:
-		testing.expectf(t, v.operator == operator, "want unary %v, got %v", operator, v.operator)
-		return v.operand
-	case:
-		testing.expectf(t, false, "want a unary %v", operator)
-	}
-	return nil
 }
 
 @(test)

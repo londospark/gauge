@@ -1,13 +1,12 @@
-package parser
+package compiler
 
 import "core:fmt"
 import "core:mem"
-import tok "../token"
 
 // The error message lives on the Parser so parse functions can return
 // (T, bool) and use `or_return`; `parse` surfaces it as its third return.
 Parser :: struct {
-	tokens:   []tok.Token,
+	tokens:   []Token,
 	position: int,
 	err:      string,
 }
@@ -29,7 +28,7 @@ Expr :: union #no_nil {
 	Unary,
 	String,
 	Number,
-	Ident,
+	Identifier,
 	Call,
 	Assign,
 	Block,
@@ -64,7 +63,7 @@ Unary :: struct {
 
 String :: struct {
 	using node: Node,
-	value:      tok.StringLiteral,
+	value:      StringLiteralToken,
 }
 
 Number :: struct {
@@ -73,26 +72,26 @@ Number :: struct {
 	// @Note: this could be a numeric type, but at this point I
 	//        don't think that it would be wise because it would
 	//        have to be a float, and there's precision loss there.
-	// @Review: resolved — keep raw text, typed as tok.Number at the
+	// @Review: resolved — keep raw text, typed as NumberToken at the
 	//          boundary so only a Number token can fill this field;
 	//          parse to a typed value in the constant-folding pass.
-	value:      tok.Number,
+	value:      NumberToken,
 }
 
-Ident :: struct {
+Identifier :: struct {
 	using node: Node,
-	name:       tok.Identifier,
+	name:       IdentifierToken,
 }
 
 Call :: struct {
 	using node: Node,
-	name:       tok.Identifier,
+	name:       IdentifierToken,
 	args:       [dynamic]^Expr,
 }
 
 Assign :: struct {
 	using node: Node,
-	name:       tok.Identifier,
+	name:       IdentifierToken,
 	value:      ^Expr,
 }
 
@@ -103,7 +102,7 @@ Block :: struct {
 
 TypeName :: struct {
 	using node: Node,
-	name:       tok.Identifier
+	name:       IdentifierToken
 }
 
 TypePointer :: struct {
@@ -117,14 +116,14 @@ Type :: union #no_nil {
 
 Const :: struct {
 	using node: Node,
-	name:       tok.Identifier,
+	name:       IdentifierToken,
 	type:       ^Type,
 	value:      ^Expr,
 }
 
 Proc :: struct {
 	using node: Node,
-	name:       tok.Identifier,
+	name:       IdentifierToken,
 	body:       ^Block,
 }
 
@@ -134,17 +133,17 @@ Program :: struct {
 
 // --- token helpers ---
 
-current :: proc(p: ^Parser) -> tok.Token {
+current :: proc(p: ^Parser) -> Token {
 	return p.tokens[p.position]
 }
 
-advance :: proc(p: ^Parser) -> tok.Token {
+advance :: proc(p: ^Parser) -> Token {
 	token := p.tokens[p.position]
 	p.position += 1
 	return token
 }
 
-peek :: proc(p: ^Parser, ahead: int) -> tok.Token {
+peek :: proc(p: ^Parser, ahead: int) -> Token {
 	pos := p.position + ahead
 	if pos >= len(p.tokens) {
 		return p.tokens[len(p.tokens) - 1]
@@ -153,7 +152,7 @@ peek :: proc(p: ^Parser, ahead: int) -> tok.Token {
 }
 
 is_eof :: proc(p: ^Parser) -> bool {
-	if simple, ok := current(p).value.(tok.SimpleToken); ok && simple == .EOF {
+	if simple, ok := current(p).value.(SimpleToken); ok && simple == .EOF {
 		return true
 	}
 	return false
@@ -163,17 +162,17 @@ skip_newlines :: proc(p: ^Parser) {
 	for match_simple(p, .NewLine) {}
 }
 
-match_simple :: proc(p: ^Parser, kind: tok.SimpleToken) -> bool {
-	if simple, ok := current(p).value.(tok.SimpleToken); ok && simple == kind {
+match_simple :: proc(p: ^Parser, kind: SimpleToken) -> bool {
+	if simple, ok := current(p).value.(SimpleToken); ok && simple == kind {
 		advance(p)
 		return true
 	}
 	return false
 }
 
-expect_simple :: proc(p: ^Parser, kind: tok.SimpleToken) -> (token: tok.Token, ok: bool) {
+expect_simple :: proc(p: ^Parser, kind: SimpleToken) -> (token: Token, ok: bool) {
 	token = current(p)
-	simple, is_simple := token.value.(tok.SimpleToken)
+	simple, is_simple := token.value.(SimpleToken)
 	if is_simple && simple == kind {
 		advance(p)
 		return token, true
@@ -182,17 +181,17 @@ expect_simple :: proc(p: ^Parser, kind: tok.SimpleToken) -> (token: tok.Token, o
 	return token, false
 }
 
-match_keyword :: proc(p: ^Parser, kind: tok.Keyword) -> bool {
-	if keyword, ok := current(p).value.(tok.Keyword); ok && keyword == kind {
+match_keyword :: proc(p: ^Parser, kind: KeywordToken) -> bool {
+	if keyword, ok := current(p).value.(KeywordToken); ok && keyword == kind {
 		advance(p)
 		return true
 	}
 	return false
 }
 
-expect_keyword :: proc(p: ^Parser, kind: tok.Keyword) -> (token: tok.Token, ok: bool) {
+expect_keyword :: proc(p: ^Parser, kind: KeywordToken) -> (token: Token, ok: bool) {
 	token = current(p)
-	keyword, is_keyword := token.value.(tok.Keyword)
+	keyword, is_keyword := token.value.(KeywordToken)
 	if is_keyword && keyword == kind {
 		advance(p)
 		return token, true
@@ -201,9 +200,9 @@ expect_keyword :: proc(p: ^Parser, kind: tok.Keyword) -> (token: tok.Token, ok: 
 	return token, false
 }
 
-expect_identifier :: proc(p: ^Parser) -> (ident: tok.Identifier, offset: int, ok: bool) {
+expect_identifier :: proc(p: ^Parser) -> (ident: IdentifierToken, offset: int, ok: bool) {
 	token := current(p)
-	if name, is_ident := token.value.(tok.Identifier); is_ident {
+	if name, is_ident := token.value.(IdentifierToken); is_ident {
 		advance(p)
 		return name, token.offset, true
 	}
@@ -220,8 +219,8 @@ BindingPower :: struct {
 
 // Precedence table: Equals (2,1) right; Plus/Minus (10,11); Star/Slash (20,21); LParen (30,30).
 // Left-assoc: left < right. Right-assoc: left > right. See docs/pratt_parsing.md.
-binding_power :: proc(token: tok.Token) -> (BindingPower, bool) {
-	simple, is_simple := token.value.(tok.SimpleToken)
+binding_power :: proc(token: Token) -> (BindingPower, bool) {
+	simple, is_simple := token.value.(SimpleToken)
 	if !is_simple do return BindingPower { left = 0, right = 0 }, false
 
 	#partial switch simple {
@@ -237,8 +236,8 @@ binding_power :: proc(token: tok.Token) -> (BindingPower, bool) {
 	return BindingPower { left = 0, right = 0 }, false
 }
 
-unary_binding_power :: proc(token: tok.Token) -> (int, bool) {
-	simple, is_simple := token.value.(tok.SimpleToken)
+unary_binding_power :: proc(token: Token) -> (int, bool) {
+	simple, is_simple := token.value.(SimpleToken)
 	if !is_simple do return 0, false
 
 	#partial switch simple {
@@ -248,7 +247,7 @@ unary_binding_power :: proc(token: tok.Token) -> (int, bool) {
 	return 0, false
 }
 
-to_binary_operator :: proc(simple: tok.SimpleToken) -> BinaryOperator {
+to_binary_operator :: proc(simple: SimpleToken) -> BinaryOperator {
 	#partial switch simple {
 	case .Plus:  return .Add
 	case .Minus: return .Subtract
@@ -258,7 +257,7 @@ to_binary_operator :: proc(simple: tok.SimpleToken) -> BinaryOperator {
 	panic(fmt.tprintf("Someone passed %v to us and that's not a binary operator", simple))
 }
 
-to_unary_operator :: proc(simple: tok.SimpleToken) -> UnaryOperator {
+to_unary_operator :: proc(simple: SimpleToken) -> UnaryOperator {
 	#partial switch simple {
 	case .Plus:  return .Plus
 	case .Minus: return .Minus
@@ -281,19 +280,19 @@ parse_expression :: proc(p: ^Parser, minimum_binding_power: int, allocator: mem.
 parse_prefix :: proc(p: ^Parser, allocator: mem.Allocator) -> (expr: ^Expr, ok: bool) {
 	token := current(p)
 	#partial switch v in token.value {
-	case tok.Number:
+	case NumberToken:
 		advance(p)
 		return new_number(v, token.offset, allocator), true
 
-	case tok.Identifier:
+	case IdentifierToken:
 		advance(p)
 		return new_ident(v, token.offset, allocator), true
 
-	case tok.StringLiteral:
+	case StringLiteralToken:
 		advance(p)
 		return new_string(v, token.offset, allocator), true
 
-	case tok.SimpleToken:
+	case SimpleToken:
 		if v == .LParen {
 			// @Note: No need to expect anything, the if condition checked
 			//        it all for us.
@@ -319,8 +318,8 @@ parse_prefix :: proc(p: ^Parser, allocator: mem.Allocator) -> (expr: ^Expr, ok: 
 	return nil, false
 }
 
-parse_infix :: proc(p: ^Parser, operator: tok.Token, left: ^Expr, right: ^Expr, allocator: mem.Allocator) -> (expr: ^Expr, ok: bool) {
-	return new_binary(to_binary_operator(operator.value.(tok.SimpleToken)), left, right, operator.offset, allocator), true
+parse_infix :: proc(p: ^Parser, operator: Token, left: ^Expr, right: ^Expr, allocator: mem.Allocator) -> (expr: ^Expr, ok: bool) {
+	return new_binary(to_binary_operator(operator.value.(SimpleToken)), left, right, operator.offset, allocator), true
 }
 
 parse_args :: proc(p: ^Parser, allocator: mem.Allocator) -> (args: [dynamic]^Expr, ok: bool) {
@@ -380,14 +379,14 @@ parse_program :: proc(p: ^Parser, allocator: mem.Allocator) -> (program: ^Progra
 	return program, true
 }
 
-parse :: proc(token_list: []tok.Token, allocator: mem.Allocator) -> (program: ^Program, ok: bool, err: string) {
+parse :: proc(token_list: []Token, allocator: mem.Allocator) -> (program: ^Program, ok: bool, err: string) {
 	tokens := zoning_pre_parse(token_list, allocator)
 	p := Parser { tokens = tokens }
 	program, ok = parse_program(&p, allocator)
 	return program, ok, p.err
 }
 
-zoning_pre_parse :: proc(tokens: []tok.Token, allocator: mem.Allocator) -> []tok.Token {
+zoning_pre_parse :: proc(tokens: []Token, allocator: mem.Allocator) -> []Token {
 	paren_depth := 0
 
 	// @Note: we know we're allocating enough here (or more than enough)
@@ -396,9 +395,9 @@ zoning_pre_parse :: proc(tokens: []tok.Token, allocator: mem.Allocator) -> []tok
 	// @Review: resolved — capacity is len(tokens) and the output can only
 	//          shrink (NewLines are dropped), so no reallocation ever
 	//          happens; the pre-sized dynamic is deliberate.
-	result := make([dynamic]tok.Token, 0, len(tokens), allocator)
+	result := make([dynamic]Token, 0, len(tokens), allocator)
 	for token in tokens {
-		simple, is_simple := token.value.(tok.SimpleToken)
+		simple, is_simple := token.value.(SimpleToken)
 
 		if !is_simple {
 			append(&result, token)
@@ -435,16 +434,16 @@ new_unit :: proc(offset: int, allocator: mem.Allocator) -> ^Expr {
 	return new_expr(Unit { node = Node { offset = offset } }, allocator)
 }
 
-new_number :: proc(value: tok.Number, offset: int, allocator: mem.Allocator) -> ^Expr {
+new_number :: proc(value: NumberToken, offset: int, allocator: mem.Allocator) -> ^Expr {
 	return new_expr(Number { node = Node { offset = offset }, value = value }, allocator)
 }
 
-new_string :: proc(value: tok.StringLiteral, offset: int, allocator: mem.Allocator) -> ^Expr {
+new_string :: proc(value: StringLiteralToken, offset: int, allocator: mem.Allocator) -> ^Expr {
 	return new_expr(String { node = Node { offset = offset }, value = value }, allocator)
 }
 
-new_ident :: proc(name: tok.Identifier, offset: int, allocator: mem.Allocator) -> ^Expr {
-	return new_expr(Ident { node = Node { offset = offset }, name = name }, allocator)
+new_ident :: proc(name: IdentifierToken, offset: int, allocator: mem.Allocator) -> ^Expr {
+	return new_expr(Identifier { node = Node { offset = offset }, name = name }, allocator)
 }
 
 new_unary :: proc(operator: UnaryOperator, operand: ^Expr, offset: int, allocator: mem.Allocator) -> ^Expr {
@@ -457,12 +456,12 @@ new_binary :: proc(operator: BinaryOperator, lhs: ^Expr, rhs: ^Expr, offset: int
 	return new_expr(Binary { node = Node { offset = offset }, lhs = lhs, rhs = rhs, operator = operator }, allocator)
 }
 
-new_assign :: proc(name: tok.Identifier, value: ^Expr, offset: int, allocator: mem.Allocator) -> ^Expr {
+new_assign :: proc(name: IdentifierToken, value: ^Expr, offset: int, allocator: mem.Allocator) -> ^Expr {
 	if value == nil do return nil
 	return new_expr(Assign { node = Node { offset = offset }, name = name, value = value }, allocator)
 }
 
-new_call :: proc(name: tok.Identifier, args: [dynamic]^Expr, offset: int, allocator: mem.Allocator) -> ^Expr {
+new_call :: proc(name: IdentifierToken, args: [dynamic]^Expr, offset: int, allocator: mem.Allocator) -> ^Expr {
 	return new_expr(Call { node = Node { offset = offset }, name = name, args = args }, allocator)
 }
 
@@ -470,12 +469,12 @@ new_block :: proc(body: [dynamic]^Expr, offset: int, allocator: mem.Allocator) -
 	return new_expr(Block { node = Node { offset = offset }, body = body }, allocator)
 }
 
-new_const :: proc(name: tok.Identifier, type: ^Type, value: ^Expr, offset: int, allocator: mem.Allocator) -> ^Expr {
+new_const :: proc(name: IdentifierToken, type: ^Type, value: ^Expr, offset: int, allocator: mem.Allocator) -> ^Expr {
 	if value == nil do return nil
 	return new_expr(Const { node = Node { offset = offset }, name = name, type = type, value = value }, allocator)
 }
 
-new_proc :: proc(name: tok.Identifier, body: ^Block, offset: int, allocator: mem.Allocator) -> ^Expr {
+new_proc :: proc(name: IdentifierToken, body: ^Block, offset: int, allocator: mem.Allocator) -> ^Expr {
 	if body == nil do return nil
 	return new_expr(Proc { node = Node { offset = offset }, name = name, body = body }, allocator)
 }
@@ -491,6 +490,6 @@ new_pointer :: proc(pointee: ^Type, offset: int, allocator: mem.Allocator) -> ^T
 	return new_type(TypePointer { node = Node { offset = offset }, pointee = pointee }, allocator)
 }
 
-new_type_name :: proc(name: tok.Identifier, offset: int, allocator: mem.Allocator) -> ^Type {
+new_type_name :: proc(name: IdentifierToken, offset: int, allocator: mem.Allocator) -> ^Type {
 	return new_type(TypeName { node = Node { offset = offset }, name = name }, allocator)
 }

@@ -53,7 +53,8 @@ decisions live in §11.
   implementation.
 - **Semantic checker** — the pass after the parser: name resolution, HM
   typing, and constant folding. Designed in `docs/type_system.md`; build
-  order in its §10.
+  order in its §10. Lands as a pass inside the single `compiler/`
+  package, not a new package boundary.
 
 ## Next up
 
@@ -109,16 +110,17 @@ multi-line decision lands with the paren-zone pre-pass in this commit.*
 
 ## Done
 
-- Lexer (`lexer/`) — cursor-based, byte offsets, newline tokens,
+- Lexer — cursor-based, byte offsets, newline tokens,
   `//` comments, escape-aware strings, `(u8, bool)` peek/advance.
-- Package split (`lexer/`, `parser/`) with table-driven lexer tests.
+- Package split with table-driven lexer tests — later consolidated into
+  the single `compiler/` package.
 - Design docs — `docs/design.md` (north star + principles),
   `docs/scoping.md` (the scoped model, RAII comparison, risks),
   `docs/scoping_examples.md` (Dear ImGui + Clay walk-throughs),
   `docs/type_system.md` (semantic checking: HM + value restriction,
   multi-return, distinct types, DUs, casts).
 - **Basic parser (consts, types, expressions)** — recursive descent for
-  declarations, Pratt for expressions, producing the AST in `parser/`.
+  declarations, Pratt for expressions, producing the AST in `compiler/`.
   Inferred and typed consts, the type grammar (`^int`, `^^int`), binary
   `+ - * /`, unary `-` (floor 25), and grouping all land with specs.
   Blocks, proc dispatch, calls, and assignment are the next slices.
@@ -142,4 +144,4 @@ multi-line decision lands with the paren-zone pre-pass in this commit.*
   line as the binding marker, one declaration per line.
   The OCaml-ward future path (trailing-operator continuation only, a
   meaning-preserving relaxation) and the lesson are recorded in §11.16, and
-  the end-to-end `integration/` suite pins the pipeline.
+  the end-to-end tests pin the pipeline.

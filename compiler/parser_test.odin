@@ -1,8 +1,7 @@
-package parser
+package compiler
 
 import "core:testing"
 import "core:mem"
-import tok "../token"
 
 // new_test_arena returns an allocator backed by a fresh dynamic arena whose
 // lifetime is tied to the test. A registered cleanup destroys the arena
@@ -36,7 +35,7 @@ expect_decls :: proc(t: ^testing.T, program: ^Program, count: int) {
 	testing.expectf(t, len(program.decls) == count, "want %d declaration(s), got %d", count, len(program.decls))
 }
 
-expect_const :: proc(t: ^testing.T, decl: ^Expr, name: tok.Identifier) -> ^Expr {
+expect_const :: proc(t: ^testing.T, decl: ^Expr, name: IdentifierToken) -> ^Expr {
 	#partial switch d in decl^ {
 	case Const:
 		testing.expectf(t, d.name == name, "want const %q, got %q", name, d.name)
@@ -67,7 +66,7 @@ expect_binary_at :: proc(t: ^testing.T, expr: ^Expr, operator: BinaryOperator, o
 	return lhs, rhs
 }
 
-expect_number :: proc(t: ^testing.T, expr: ^Expr, value: tok.Number) {
+expect_number :: proc(t: ^testing.T, expr: ^Expr, value: NumberToken) {
 	#partial switch v in expr^ {
 	case Number:
 		testing.expectf(t, v.value == value, "want number %q, got %q", value, v.value)
@@ -76,7 +75,7 @@ expect_number :: proc(t: ^testing.T, expr: ^Expr, value: tok.Number) {
 	}
 }
 
-expect_string :: proc(t: ^testing.T, expr: ^Expr, value: tok.StringLiteral) {
+expect_string :: proc(t: ^testing.T, expr: ^Expr, value: StringLiteralToken) {
 	#partial switch v in expr^ {
 	case String:
 		testing.expectf(t, v.value == value, "want string %q, got %q", value, v.value)
@@ -85,9 +84,9 @@ expect_string :: proc(t: ^testing.T, expr: ^Expr, value: tok.StringLiteral) {
 	}
 }
 
-expect_ident :: proc(t: ^testing.T, expr: ^Expr, name: tok.Identifier) {
+expect_ident :: proc(t: ^testing.T, expr: ^Expr, name: IdentifierToken) {
 	#partial switch v in expr^ {
-	case Ident:
+	case Identifier:
 		testing.expectf(t, v.name == name, "want identifier %q, got %q", name, v.name)
 	case:
 		testing.expectf(t, false, "want an identifier %q", name)
@@ -105,7 +104,7 @@ expect_unary :: proc(t: ^testing.T, expr: ^Expr, operator: UnaryOperator) -> ^Ex
 	return nil
 }
 
-expect_assign :: proc(t: ^testing.T, expr: ^Expr, name: tok.Identifier) -> ^Expr {
+expect_assign :: proc(t: ^testing.T, expr: ^Expr, name: IdentifierToken) -> ^Expr {
 	#partial switch v in expr^ {
 	case Assign:
 		testing.expectf(t, v.name == name, "want assignment to %q, got %q", name, v.name)
@@ -116,7 +115,7 @@ expect_assign :: proc(t: ^testing.T, expr: ^Expr, name: tok.Identifier) -> ^Expr
 	return nil
 }
 
-expect_call_at :: proc(t: ^testing.T, expr: ^Expr, name: tok.Identifier, offset: int) -> []^Expr {
+expect_call_at :: proc(t: ^testing.T, expr: ^Expr, name: IdentifierToken, offset: int) -> []^Expr {
 	#partial switch v in expr^ {
 	case Call:
 		testing.expectf(t, v.name == name, "want call to %q, got %q", name, v.name)
@@ -128,7 +127,7 @@ expect_call_at :: proc(t: ^testing.T, expr: ^Expr, name: tok.Identifier, offset:
 	return nil
 }
 
-expect_proc :: proc(t: ^testing.T, decl: ^Expr, name: tok.Identifier) -> ^Block {
+expect_proc :: proc(t: ^testing.T, decl: ^Expr, name: IdentifierToken) -> ^Block {
 	#partial switch d in decl^ {
 	case Proc:
 		testing.expectf(t, d.name == name, "want procedure %q, got %q", name, d.name)
@@ -144,7 +143,7 @@ expect_block :: proc(t: ^testing.T, block: ^Block, count: int) -> []^Expr {
 	return block.body[:]
 }
 
-expect_type_name :: proc(t: ^testing.T, ty: ^Type, name: tok.Identifier) {
+expect_type_name :: proc(t: ^testing.T, ty: ^Type, name: IdentifierToken) {
 	#partial switch v in ty^ {
 	case TypeName:
 		testing.expectf(t, v.name == name, "want type %q, got %q", name, v.name)
@@ -166,12 +165,12 @@ expect_type_pointer :: proc(t: ^testing.T, ty: ^Type, offset: int) -> ^Type {
 
 @(test)
 test_parse_const_number :: proc(t: ^testing.T) {
-	tokens := []tok.Token{
-		{offset = 0, value = tok.Identifier("x")},
-		{offset = 2, value = tok.SimpleToken.Colon},
-		{offset = 3, value = tok.SimpleToken.Colon},
-		{offset = 5, value = tok.Number("42")},
-		{offset = 7, value = tok.SimpleToken.EOF},
+	tokens := []Token{
+		{offset = 0, value = IdentifierToken("x")},
+		{offset = 2, value = SimpleToken.Colon},
+		{offset = 3, value = SimpleToken.Colon},
+		{offset = 5, value = NumberToken("42")},
+		{offset = 7, value = SimpleToken.EOF},
 	}
 
 	program, ok, err := parse(tokens, new_test_arena(t))
@@ -186,12 +185,12 @@ test_parse_const_number :: proc(t: ^testing.T) {
 
 @(test)
 test_parse_const_string :: proc(t: ^testing.T) {
-	tokens := []tok.Token{
-		{offset = 0, value = tok.Identifier("greeting")},
-		{offset = 9, value = tok.SimpleToken.Colon},
-		{offset = 10, value = tok.SimpleToken.Colon},
-		{offset = 12, value = tok.StringLiteral("hellope")},
-		{offset = 20, value = tok.SimpleToken.EOF},
+	tokens := []Token{
+		{offset = 0, value = IdentifierToken("greeting")},
+		{offset = 9, value = SimpleToken.Colon},
+		{offset = 10, value = SimpleToken.Colon},
+		{offset = 12, value = StringLiteralToken("hellope")},
+		{offset = 20, value = SimpleToken.EOF},
 	}
 
 	program, ok, err := parse(tokens, new_test_arena(t))
@@ -207,17 +206,17 @@ test_parse_const_string :: proc(t: ^testing.T) {
 // @(test) DISABLED — proc-dispatch not yet implemented. Re-enable by
 // uncommenting the @(test) attribute when parse_decl grows the proc path.
 test_parse_empty_proc :: proc(t: ^testing.T) {
-	tokens := []tok.Token{
-		{offset = 0, value = tok.Identifier("main")},
-		{offset = 5, value = tok.SimpleToken.Colon},
-		{offset = 6, value = tok.SimpleToken.Colon},
-		{offset = 8, value = tok.Keyword.Proc},
-		{offset = 12, value = tok.SimpleToken.LParen},
-		{offset = 13, value = tok.SimpleToken.RParen},
-		{offset = 15, value = tok.SimpleToken.LSquirly},
-		{offset = 16, value = tok.SimpleToken.NewLine},
-		{offset = 17, value = tok.SimpleToken.RSquirly},
-		{offset = 18, value = tok.SimpleToken.EOF},
+	tokens := []Token{
+		{offset = 0, value = IdentifierToken("main")},
+		{offset = 5, value = SimpleToken.Colon},
+		{offset = 6, value = SimpleToken.Colon},
+		{offset = 8, value = KeywordToken.Proc},
+		{offset = 12, value = SimpleToken.LParen},
+		{offset = 13, value = SimpleToken.RParen},
+		{offset = 15, value = SimpleToken.LSquirly},
+		{offset = 16, value = SimpleToken.NewLine},
+		{offset = 17, value = SimpleToken.RSquirly},
+		{offset = 18, value = SimpleToken.EOF},
 	}
 
 	program, ok, err := parse(tokens, new_test_arena(t))
@@ -237,23 +236,23 @@ test_parse_empty_proc :: proc(t: ^testing.T) {
 // arm. test_parse_empty_proc and test_parse_multiline_group_inside_block
 // cover the blocks slice without it.
 test_parse_proc_body :: proc(t: ^testing.T) {
-	tokens := []tok.Token{
-		{offset = 0, value = tok.Identifier("main")},
-		{offset = 5, value = tok.SimpleToken.Colon},
-		{offset = 6, value = tok.SimpleToken.Colon},
-		{offset = 8, value = tok.Keyword.Proc},
-		{offset = 12, value = tok.SimpleToken.LParen},
-		{offset = 13, value = tok.SimpleToken.RParen},
-		{offset = 15, value = tok.SimpleToken.LSquirly},
-		{offset = 16, value = tok.SimpleToken.NewLine},
-		{offset = 18, value = tok.Identifier("answer")},
-		{offset = 25, value = tok.SimpleToken.Equals},
-		{offset = 27, value = tok.Number("40")},
-		{offset = 30, value = tok.SimpleToken.Plus},
-		{offset = 32, value = tok.Number("2")},
-		{offset = 33, value = tok.SimpleToken.NewLine},
-		{offset = 34, value = tok.SimpleToken.RSquirly},
-		{offset = 35, value = tok.SimpleToken.EOF},
+	tokens := []Token{
+		{offset = 0, value = IdentifierToken("main")},
+		{offset = 5, value = SimpleToken.Colon},
+		{offset = 6, value = SimpleToken.Colon},
+		{offset = 8, value = KeywordToken.Proc},
+		{offset = 12, value = SimpleToken.LParen},
+		{offset = 13, value = SimpleToken.RParen},
+		{offset = 15, value = SimpleToken.LSquirly},
+		{offset = 16, value = SimpleToken.NewLine},
+		{offset = 18, value = IdentifierToken("answer")},
+		{offset = 25, value = SimpleToken.Equals},
+		{offset = 27, value = NumberToken("40")},
+		{offset = 30, value = SimpleToken.Plus},
+		{offset = 32, value = NumberToken("2")},
+		{offset = 33, value = SimpleToken.NewLine},
+		{offset = 34, value = SimpleToken.RSquirly},
+		{offset = 35, value = SimpleToken.EOF},
 	}
 
 	program, ok, err := parse(tokens, new_test_arena(t))
@@ -269,19 +268,19 @@ test_parse_proc_body :: proc(t: ^testing.T) {
 
 @(test)
 test_parse_const_arithmetic_reference :: proc(t: ^testing.T) {
-	tokens := []tok.Token{
-		{offset = 0, value = tok.Identifier("KiB")},
-		{offset = 4, value = tok.SimpleToken.Colon},
-		{offset = 5, value = tok.SimpleToken.Colon},
-		{offset = 7, value = tok.Number("1024")},
-		{offset = 11, value = tok.SimpleToken.NewLine},
-		{offset = 12, value = tok.Identifier("MiB")},
-		{offset = 16, value = tok.SimpleToken.Colon},
-		{offset = 17, value = tok.SimpleToken.Colon},
-		{offset = 19, value = tok.Number("1024")},
-		{offset = 24, value = tok.SimpleToken.Star},
-		{offset = 26, value = tok.Identifier("KiB")},
-		{offset = 29, value = tok.SimpleToken.EOF},
+	tokens := []Token{
+		{offset = 0, value = IdentifierToken("KiB")},
+		{offset = 4, value = SimpleToken.Colon},
+		{offset = 5, value = SimpleToken.Colon},
+		{offset = 7, value = NumberToken("1024")},
+		{offset = 11, value = SimpleToken.NewLine},
+		{offset = 12, value = IdentifierToken("MiB")},
+		{offset = 16, value = SimpleToken.Colon},
+		{offset = 17, value = SimpleToken.Colon},
+		{offset = 19, value = NumberToken("1024")},
+		{offset = 24, value = SimpleToken.Star},
+		{offset = 26, value = IdentifierToken("KiB")},
+		{offset = 29, value = SimpleToken.EOF},
 	}
 
 	program, ok, err := parse(tokens, new_test_arena(t))
@@ -300,16 +299,16 @@ test_parse_const_arithmetic_reference :: proc(t: ^testing.T) {
 @(test)
 test_parse_precedence :: proc(t: ^testing.T) {
 	// 1 + 2 * 3 must group as 1 + (2 * 3), not (1 + 2) * 3.
-	tokens := []tok.Token{
-		{offset = 0, value = tok.Identifier("x")},
-		{offset = 2, value = tok.SimpleToken.Colon},
-		{offset = 3, value = tok.SimpleToken.Colon},
-		{offset = 5, value = tok.Number("1")},
-		{offset = 7, value = tok.SimpleToken.Plus},
-		{offset = 9, value = tok.Number("2")},
-		{offset = 11, value = tok.SimpleToken.Star},
-		{offset = 13, value = tok.Number("3")},
-		{offset = 14, value = tok.SimpleToken.EOF},
+	tokens := []Token{
+		{offset = 0, value = IdentifierToken("x")},
+		{offset = 2, value = SimpleToken.Colon},
+		{offset = 3, value = SimpleToken.Colon},
+		{offset = 5, value = NumberToken("1")},
+		{offset = 7, value = SimpleToken.Plus},
+		{offset = 9, value = NumberToken("2")},
+		{offset = 11, value = SimpleToken.Star},
+		{offset = 13, value = NumberToken("3")},
+		{offset = 14, value = SimpleToken.EOF},
 	}
 
 	program, ok, err := parse(tokens, new_test_arena(t))
@@ -328,18 +327,18 @@ test_parse_precedence :: proc(t: ^testing.T) {
 test_parse_bracketed_const :: proc(t: ^testing.T) {
 	// x :: (4 + 2) * 3 — the `(` is grouping, not a proc signature.
 	// Exercises the LParen prefix arm; the group is one atomic left operand.
-	tokens := []tok.Token{
-		{offset = 0, value = tok.Identifier("x")},
-		{offset = 2, value = tok.SimpleToken.Colon},
-		{offset = 3, value = tok.SimpleToken.Colon},
-		{offset = 5, value = tok.SimpleToken.LParen},
-		{offset = 6, value = tok.Number("4")},
-		{offset = 8, value = tok.SimpleToken.Plus},
-		{offset = 10, value = tok.Number("2")},
-		{offset = 11, value = tok.SimpleToken.RParen},
-		{offset = 13, value = tok.SimpleToken.Star},
-		{offset = 15, value = tok.Number("3")},
-		{offset = 16, value = tok.SimpleToken.EOF},
+	tokens := []Token{
+		{offset = 0, value = IdentifierToken("x")},
+		{offset = 2, value = SimpleToken.Colon},
+		{offset = 3, value = SimpleToken.Colon},
+		{offset = 5, value = SimpleToken.LParen},
+		{offset = 6, value = NumberToken("4")},
+		{offset = 8, value = SimpleToken.Plus},
+		{offset = 10, value = NumberToken("2")},
+		{offset = 11, value = SimpleToken.RParen},
+		{offset = 13, value = SimpleToken.Star},
+		{offset = 15, value = NumberToken("3")},
+		{offset = 16, value = SimpleToken.EOF},
 	}
 
 	program, ok, err := parse(tokens, new_test_arena(t))
@@ -359,12 +358,12 @@ test_parse_rejects_stray_close_paren :: proc(t: ^testing.T) {
 	// x :: )  — a close paren where an expression must be. parse_prefix
 	// must reject it as a source error, not treat every SimpleToken as
 	// the grouping LParen arm.
-	tokens := []tok.Token{
-		{offset = 0, value = tok.Identifier("x")},
-		{offset = 2, value = tok.SimpleToken.Colon},
-		{offset = 3, value = tok.SimpleToken.Colon},
-		{offset = 5, value = tok.SimpleToken.RParen},
-		{offset = 6, value = tok.SimpleToken.EOF},
+	tokens := []Token{
+		{offset = 0, value = IdentifierToken("x")},
+		{offset = 2, value = SimpleToken.Colon},
+		{offset = 3, value = SimpleToken.Colon},
+		{offset = 5, value = SimpleToken.RParen},
+		{offset = 6, value = SimpleToken.EOF},
 	}
 
 	program, ok, _ := parse(tokens, new_test_arena(t))
@@ -378,13 +377,13 @@ test_parse_rejects_stray_close_paren :: proc(t: ^testing.T) {
 test_parse_unary_minus :: proc(t: ^testing.T) {
 	// x :: -5 — a leading minus is a real Unary expression, not an
 	// error and not a silent +5: Unary(Minus, Number(5)) must be produced.
-	tokens := []tok.Token{
-		{offset = 0, value = tok.Identifier("x")},
-		{offset = 2, value = tok.SimpleToken.Colon},
-		{offset = 3, value = tok.SimpleToken.Colon},
-		{offset = 5, value = tok.SimpleToken.Minus},
-		{offset = 6, value = tok.Number("5")},
-		{offset = 7, value = tok.SimpleToken.EOF},
+	tokens := []Token{
+		{offset = 0, value = IdentifierToken("x")},
+		{offset = 2, value = SimpleToken.Colon},
+		{offset = 3, value = SimpleToken.Colon},
+		{offset = 5, value = SimpleToken.Minus},
+		{offset = 6, value = NumberToken("5")},
+		{offset = 7, value = SimpleToken.EOF},
 	}
 
 	program, ok, err := parse(tokens, new_test_arena(t))
@@ -401,15 +400,15 @@ test_parse_unary_minus :: proc(t: ^testing.T) {
 test_parse_unary_minus_binds_tighter_than_plus :: proc(t: ^testing.T) {
 	// x :: -2 + 3 must group as (-2) + 3, not -(2 + 3). This is the
 	// floor test: parsing the unary operand at 0 would drag the + in.
-	tokens := []tok.Token{
-		{offset = 0, value = tok.Identifier("x")},
-		{offset = 2, value = tok.SimpleToken.Colon},
-		{offset = 3, value = tok.SimpleToken.Colon},
-		{offset = 5, value = tok.SimpleToken.Minus},
-		{offset = 6, value = tok.Number("2")},
-		{offset = 8, value = tok.SimpleToken.Plus},
-		{offset = 10, value = tok.Number("3")},
-		{offset = 11, value = tok.SimpleToken.EOF},
+	tokens := []Token{
+		{offset = 0, value = IdentifierToken("x")},
+		{offset = 2, value = SimpleToken.Colon},
+		{offset = 3, value = SimpleToken.Colon},
+		{offset = 5, value = SimpleToken.Minus},
+		{offset = 6, value = NumberToken("2")},
+		{offset = 8, value = SimpleToken.Plus},
+		{offset = 10, value = NumberToken("3")},
+		{offset = 11, value = SimpleToken.EOF},
 	}
 
 	program, ok, err := parse(tokens, new_test_arena(t))
@@ -428,14 +427,14 @@ test_parse_double_unary_minus :: proc(t: ^testing.T) {
 	// x :: --5 — double negation nests: Unary(Minus, Unary(Minus, 5)).
 	// The recursion must allow it, and the shape must be two nested
 	// Unary nodes, not an error.
-	tokens := []tok.Token{
-		{offset = 0, value = tok.Identifier("x")},
-		{offset = 2, value = tok.SimpleToken.Colon},
-		{offset = 3, value = tok.SimpleToken.Colon},
-		{offset = 5, value = tok.SimpleToken.Minus},
-		{offset = 6, value = tok.SimpleToken.Minus},
-		{offset = 7, value = tok.Number("5")},
-		{offset = 8, value = tok.SimpleToken.EOF},
+	tokens := []Token{
+		{offset = 0, value = IdentifierToken("x")},
+		{offset = 2, value = SimpleToken.Colon},
+		{offset = 3, value = SimpleToken.Colon},
+		{offset = 5, value = SimpleToken.Minus},
+		{offset = 6, value = SimpleToken.Minus},
+		{offset = 7, value = NumberToken("5")},
+		{offset = 8, value = SimpleToken.EOF},
 	}
 
 	program, ok, err := parse(tokens, new_test_arena(t))
@@ -453,15 +452,15 @@ test_parse_double_unary_minus :: proc(t: ^testing.T) {
 test_parse_unary_minus_binds_tighter_than_star :: proc(t: ^testing.T) {
 	// x :: -2 * 3 must group as (-2) * 3, not -(2 * 3). The unary
 	// operand binds at floor 25, strictly above `*`'s left strength 20.
-	tokens := []tok.Token{
-		{offset = 0, value = tok.Identifier("x")},
-		{offset = 2, value = tok.SimpleToken.Colon},
-		{offset = 3, value = tok.SimpleToken.Colon},
-		{offset = 5, value = tok.SimpleToken.Minus},
-		{offset = 6, value = tok.Number("2")},
-		{offset = 8, value = tok.SimpleToken.Star},
-		{offset = 10, value = tok.Number("3")},
-		{offset = 11, value = tok.SimpleToken.EOF},
+	tokens := []Token{
+		{offset = 0, value = IdentifierToken("x")},
+		{offset = 2, value = SimpleToken.Colon},
+		{offset = 3, value = SimpleToken.Colon},
+		{offset = 5, value = SimpleToken.Minus},
+		{offset = 6, value = NumberToken("2")},
+		{offset = 8, value = SimpleToken.Star},
+		{offset = 10, value = NumberToken("3")},
+		{offset = 11, value = SimpleToken.EOF},
 	}
 
 	program, ok, err := parse(tokens, new_test_arena(t))
@@ -481,7 +480,7 @@ test_unary_binding_power_minus :: proc(t: ^testing.T) {
 	// lookup owns the floor. Its contract is (a) the value, pinned here as
 	// 25, and (b) strictly above `*`'s left strength (20), so a prefix
 	// operand can never swallow a multiplication.
-	bp, ok := unary_binding_power(tok.Token{value = tok.SimpleToken.Minus})
+	bp, ok := unary_binding_power(Token{value = SimpleToken.Minus})
 	testing.expectf(t, ok, "Minus must be recognised as a unary operator")
 	testing.expectf(t, bp == 25, "want floor 25 for unary minus, got %d", bp)
 	testing.expectf(t, bp > 20, "unary floor %d must exceed `*`'s left strength 20", bp)
@@ -492,8 +491,8 @@ test_unary_binding_power_plus :: proc(t: ^testing.T) {
 	// Plus shares minus's floor: `+5` would bind exactly like `-5` once
 	// parse_prefix grows the arm. The row is dormant today — the parse test
 	// below pins that.
-	minus_bp, _ := unary_binding_power(tok.Token{value = tok.SimpleToken.Minus})
-	plus_bp, plus_ok := unary_binding_power(tok.Token{value = tok.SimpleToken.Plus})
+	minus_bp, _ := unary_binding_power(Token{value = SimpleToken.Minus})
+	plus_bp, plus_ok := unary_binding_power(Token{value = SimpleToken.Plus})
 	testing.expectf(t, plus_ok, "Plus must be recognised as a unary operator")
 	testing.expectf(t, plus_bp == 25, "want floor 25 for unary plus, got %d", plus_bp)
 	testing.expectf(t, plus_bp == minus_bp,
@@ -505,13 +504,13 @@ test_unary_binding_power_rejects_non_unary :: proc(t: ^testing.T) {
 	// The lookup's bool answers "is this a unary operator at all?". Binary
 	// operators and atoms must be rejected with floor 0, not silently
 	// given minus's floor.
-	rejected := []tok.Value{
-		tok.SimpleToken.Star,
-		tok.SimpleToken.LParen,
-		tok.Number("5"),
+	rejected := []ValueToken{
+		SimpleToken.Star,
+		SimpleToken.LParen,
+		NumberToken("5"),
 	}
 	for v in rejected {
-		bp, ok := unary_binding_power(tok.Token{value = v})
+		bp, ok := unary_binding_power(Token{value = v})
 		testing.expectf(t, !ok, "token %v must not be a unary operator", v)
 		testing.expectf(t, bp == 0, "rejected token %v must report floor 0, got %d", v, bp)
 	}
@@ -521,13 +520,13 @@ test_unary_binding_power_rejects_non_unary :: proc(t: ^testing.T) {
 test_parse_unary_plus :: proc(t: ^testing.T) {
 	// x :: +5 — a leading plus must be a real Unary expression, not an
 	// error: Unary(Plus, Number(5)). This is the arm test.
-	tokens := []tok.Token{
-		{offset = 0, value = tok.Identifier("x")},
-		{offset = 2, value = tok.SimpleToken.Colon},
-		{offset = 3, value = tok.SimpleToken.Colon},
-		{offset = 5, value = tok.SimpleToken.Plus},
-		{offset = 6, value = tok.Number("5")},
-		{offset = 7, value = tok.SimpleToken.EOF},
+	tokens := []Token{
+		{offset = 0, value = IdentifierToken("x")},
+		{offset = 2, value = SimpleToken.Colon},
+		{offset = 3, value = SimpleToken.Colon},
+		{offset = 5, value = SimpleToken.Plus},
+		{offset = 6, value = NumberToken("5")},
+		{offset = 7, value = SimpleToken.EOF},
 	}
 
 	program, ok, err := parse(tokens, new_test_arena(t))
@@ -544,15 +543,15 @@ test_parse_unary_plus :: proc(t: ^testing.T) {
 test_parse_unary_plus_binds_tighter_than_plus :: proc(t: ^testing.T) {
 	// x :: +2 + 3 must group as (+2) + 3, not +(2 + 3). The unary
 	// operand's floor keeps the binary + out of it.
-	tokens := []tok.Token{
-		{offset = 0, value = tok.Identifier("x")},
-		{offset = 2, value = tok.SimpleToken.Colon},
-		{offset = 3, value = tok.SimpleToken.Colon},
-		{offset = 5, value = tok.SimpleToken.Plus},
-		{offset = 6, value = tok.Number("2")},
-		{offset = 8, value = tok.SimpleToken.Plus},
-		{offset = 10, value = tok.Number("3")},
-		{offset = 11, value = tok.SimpleToken.EOF},
+	tokens := []Token{
+		{offset = 0, value = IdentifierToken("x")},
+		{offset = 2, value = SimpleToken.Colon},
+		{offset = 3, value = SimpleToken.Colon},
+		{offset = 5, value = SimpleToken.Plus},
+		{offset = 6, value = NumberToken("2")},
+		{offset = 8, value = SimpleToken.Plus},
+		{offset = 10, value = NumberToken("3")},
+		{offset = 11, value = SimpleToken.EOF},
 	}
 
 	program, ok, err := parse(tokens, new_test_arena(t))
@@ -571,15 +570,15 @@ test_parse_unary_plus_binds_tighter_than_star :: proc(t: ^testing.T) {
 	// x :: +2 * 3 must group as (+2) * 3, not +(2 * 3). The unary
 	// operand binds at the shared floor, strictly above `*`'s left
 	// strength 20.
-	tokens := []tok.Token{
-		{offset = 0, value = tok.Identifier("x")},
-		{offset = 2, value = tok.SimpleToken.Colon},
-		{offset = 3, value = tok.SimpleToken.Colon},
-		{offset = 5, value = tok.SimpleToken.Plus},
-		{offset = 6, value = tok.Number("2")},
-		{offset = 8, value = tok.SimpleToken.Star},
-		{offset = 10, value = tok.Number("3")},
-		{offset = 11, value = tok.SimpleToken.EOF},
+	tokens := []Token{
+		{offset = 0, value = IdentifierToken("x")},
+		{offset = 2, value = SimpleToken.Colon},
+		{offset = 3, value = SimpleToken.Colon},
+		{offset = 5, value = SimpleToken.Plus},
+		{offset = 6, value = NumberToken("2")},
+		{offset = 8, value = SimpleToken.Star},
+		{offset = 10, value = NumberToken("3")},
+		{offset = 11, value = SimpleToken.EOF},
 	}
 
 	program, ok, err := parse(tokens, new_test_arena(t))
@@ -597,14 +596,14 @@ test_parse_unary_plus_binds_tighter_than_star :: proc(t: ^testing.T) {
 test_parse_unary_plus_minus_mix :: proc(t: ^testing.T) {
 	// x :: +-5 — mixed signs nest: Unary(Plus, Unary(Minus, 5)). The
 	// plus arm must recurse back into the minus arm.
-	tokens := []tok.Token{
-		{offset = 0, value = tok.Identifier("x")},
-		{offset = 2, value = tok.SimpleToken.Colon},
-		{offset = 3, value = tok.SimpleToken.Colon},
-		{offset = 5, value = tok.SimpleToken.Plus},
-		{offset = 6, value = tok.SimpleToken.Minus},
-		{offset = 7, value = tok.Number("5")},
-		{offset = 8, value = tok.SimpleToken.EOF},
+	tokens := []Token{
+		{offset = 0, value = IdentifierToken("x")},
+		{offset = 2, value = SimpleToken.Colon},
+		{offset = 3, value = SimpleToken.Colon},
+		{offset = 5, value = SimpleToken.Plus},
+		{offset = 6, value = SimpleToken.Minus},
+		{offset = 7, value = NumberToken("5")},
+		{offset = 8, value = SimpleToken.EOF},
 	}
 
 	program, ok, err := parse(tokens, new_test_arena(t))
@@ -623,13 +622,13 @@ test_parse_rejects_trailing_operator :: proc(t: ^testing.T) {
 	// x :: 1 + — the operator grabs a right operand, then hits EOF.
 	// The arm-wrestle recurses into parse_prefix at EOF, which must
 	// fail cleanly rather than crash or produce a malformed tree.
-	tokens := []tok.Token{
-		{offset = 0, value = tok.Identifier("x")},
-		{offset = 2, value = tok.SimpleToken.Colon},
-		{offset = 3, value = tok.SimpleToken.Colon},
-		{offset = 5, value = tok.Number("1")},
-		{offset = 7, value = tok.SimpleToken.Plus},
-		{offset = 8, value = tok.SimpleToken.EOF},
+	tokens := []Token{
+		{offset = 0, value = IdentifierToken("x")},
+		{offset = 2, value = SimpleToken.Colon},
+		{offset = 3, value = SimpleToken.Colon},
+		{offset = 5, value = NumberToken("1")},
+		{offset = 7, value = SimpleToken.Plus},
+		{offset = 8, value = SimpleToken.EOF},
 	}
 
 	program, ok, _ := parse(tokens, new_test_arena(t))
@@ -641,15 +640,15 @@ test_parse_rejects_trailing_operator :: proc(t: ^testing.T) {
 test_parse_rejects_unterminated_group :: proc(t: ^testing.T) {
 	// x :: (4 + 2 — the closing paren is missing. The grouping arm
 	// must report the missing `)` as an error, not parse on forever.
-	tokens := []tok.Token{
-		{offset = 0, value = tok.Identifier("x")},
-		{offset = 2, value = tok.SimpleToken.Colon},
-		{offset = 3, value = tok.SimpleToken.Colon},
-		{offset = 5, value = tok.SimpleToken.LParen},
-		{offset = 6, value = tok.Number("4")},
-		{offset = 8, value = tok.SimpleToken.Plus},
-		{offset = 10, value = tok.Number("2")},
-		{offset = 11, value = tok.SimpleToken.EOF},
+	tokens := []Token{
+		{offset = 0, value = IdentifierToken("x")},
+		{offset = 2, value = SimpleToken.Colon},
+		{offset = 3, value = SimpleToken.Colon},
+		{offset = 5, value = SimpleToken.LParen},
+		{offset = 6, value = NumberToken("4")},
+		{offset = 8, value = SimpleToken.Plus},
+		{offset = 10, value = NumberToken("2")},
+		{offset = 11, value = SimpleToken.EOF},
 	}
 
 	program, ok, _ := parse(tokens, new_test_arena(t))
@@ -661,13 +660,13 @@ test_parse_rejects_unterminated_group :: proc(t: ^testing.T) {
 test_parse_rejects_empty_group :: proc(t: ^testing.T) {
 	// x :: () — an empty group. `()` is the deferred Unit value; until
 	// that lands it must be an error, not silently a done expression.
-	tokens := []tok.Token{
-		{offset = 0, value = tok.Identifier("x")},
-		{offset = 2, value = tok.SimpleToken.Colon},
-		{offset = 3, value = tok.SimpleToken.Colon},
-		{offset = 5, value = tok.SimpleToken.LParen},
-		{offset = 6, value = tok.SimpleToken.RParen},
-		{offset = 7, value = tok.SimpleToken.EOF},
+	tokens := []Token{
+		{offset = 0, value = IdentifierToken("x")},
+		{offset = 2, value = SimpleToken.Colon},
+		{offset = 3, value = SimpleToken.Colon},
+		{offset = 5, value = SimpleToken.LParen},
+		{offset = 6, value = SimpleToken.RParen},
+		{offset = 7, value = SimpleToken.EOF},
 	}
 
 	program, ok, _ := parse(tokens, new_test_arena(t))
@@ -679,10 +678,10 @@ test_parse_rejects_empty_group :: proc(t: ^testing.T) {
 test_parse_rejects_missing_double_colon :: proc(t: ^testing.T) {
 	// x 5 — a bare identifier with no `::`. parse_decl must reject it
 	// as a source error (missing `::`), not create some other node.
-	tokens := []tok.Token{
-		{offset = 0, value = tok.Identifier("x")},
-		{offset = 2, value = tok.Number("5")},
-		{offset = 3, value = tok.SimpleToken.EOF},
+	tokens := []Token{
+		{offset = 0, value = IdentifierToken("x")},
+		{offset = 2, value = NumberToken("5")},
+		{offset = 3, value = SimpleToken.EOF},
 	}
 
 	program, ok, _ := parse(tokens, new_test_arena(t))
@@ -695,14 +694,14 @@ test_parse_typed_const_pointer :: proc(t: ^testing.T) {
 	// x : ^int : 5 — an explicit type slot. The `^` is the pointer
 	// marker, `int` the name. parse_type must build
 	// TypePointer(TypeName(int)).
-	tokens := []tok.Token{
-		{offset = 0, value = tok.Identifier("x")},
-		{offset = 2, value = tok.SimpleToken.Colon},
-		{offset = 4, value = tok.SimpleToken.Hat},
-		{offset = 5, value = tok.Identifier("int")},
-		{offset = 8, value = tok.SimpleToken.Colon},
-		{offset = 10, value = tok.Number("5")},
-		{offset = 11, value = tok.SimpleToken.EOF},
+	tokens := []Token{
+		{offset = 0, value = IdentifierToken("x")},
+		{offset = 2, value = SimpleToken.Colon},
+		{offset = 4, value = SimpleToken.Hat},
+		{offset = 5, value = IdentifierToken("int")},
+		{offset = 8, value = SimpleToken.Colon},
+		{offset = 10, value = NumberToken("5")},
+		{offset = 11, value = SimpleToken.EOF},
 	}
 
 	program, ok, err := parse(tokens, new_test_arena(t))
@@ -725,15 +724,15 @@ test_parse_typed_const_pointer :: proc(t: ^testing.T) {
 test_parse_typed_const_double_pointer :: proc(t: ^testing.T) {
 	// x : ^^int : 5 — pointer-to-pointer. The `^ Type` production must
 	// recurse: TypePointer(TypePointer(TypeName(int))).
-	tokens := []tok.Token{
-		{offset = 0, value = tok.Identifier("x")},
-		{offset = 2, value = tok.SimpleToken.Colon},
-		{offset = 4, value = tok.SimpleToken.Hat},
-		{offset = 5, value = tok.SimpleToken.Hat},
-		{offset = 6, value = tok.Identifier("int")},
-		{offset = 9, value = tok.SimpleToken.Colon},
-		{offset = 11, value = tok.Number("5")},
-		{offset = 12, value = tok.SimpleToken.EOF},
+	tokens := []Token{
+		{offset = 0, value = IdentifierToken("x")},
+		{offset = 2, value = SimpleToken.Colon},
+		{offset = 4, value = SimpleToken.Hat},
+		{offset = 5, value = SimpleToken.Hat},
+		{offset = 6, value = IdentifierToken("int")},
+		{offset = 9, value = SimpleToken.Colon},
+		{offset = 11, value = NumberToken("5")},
+		{offset = 12, value = SimpleToken.EOF},
 	}
 
 	program, ok, err := parse(tokens, new_test_arena(t))
@@ -755,13 +754,13 @@ test_parse_typed_const_double_pointer :: proc(t: ^testing.T) {
 test_parse_typed_const_name :: proc(t: ^testing.T) {
 	// x : int : 5 — a bare name in the type slot (no marker). Must be a
 	// TypeName, and the value must still parse.
-	tokens := []tok.Token{
-		{offset = 0, value = tok.Identifier("x")},
-		{offset = 2, value = tok.SimpleToken.Colon},
-		{offset = 4, value = tok.Identifier("int")},
-		{offset = 7, value = tok.SimpleToken.Colon},
-		{offset = 9, value = tok.Number("5")},
-		{offset = 10, value = tok.SimpleToken.EOF},
+	tokens := []Token{
+		{offset = 0, value = IdentifierToken("x")},
+		{offset = 2, value = SimpleToken.Colon},
+		{offset = 4, value = IdentifierToken("int")},
+		{offset = 7, value = SimpleToken.Colon},
+		{offset = 9, value = NumberToken("5")},
+		{offset = 10, value = SimpleToken.EOF},
 	}
 
 	program, ok, err := parse(tokens, new_test_arena(t))
@@ -850,32 +849,32 @@ check_expr_non_nil :: proc(t: ^testing.T, e: ^Expr) {
 test_non_nil_invariant_across_parse :: proc(t: ^testing.T) {
 	// A program exercising every currently-parseable node kind:
 	// Const with Binary (nested), Unary, String, Ident, and references.
-	tokens := []tok.Token{
-		{offset = 0, value = tok.Identifier("y")},
-		{offset = 2, value = tok.SimpleToken.Colon},
-		{offset = 3, value = tok.SimpleToken.Colon},
-		{offset = 5, value = tok.Number("1")},
-		{offset = 7, value = tok.SimpleToken.Plus},
-		{offset = 9, value = tok.Number("2")},
-		{offset = 11, value = tok.SimpleToken.Star},
-		{offset = 13, value = tok.Number("3")},
-		{offset = 14, value = tok.SimpleToken.NewLine},
-		{offset = 15, value = tok.Identifier("z")},
-		{offset = 17, value = tok.SimpleToken.Colon},
-		{offset = 18, value = tok.SimpleToken.Colon},
-		{offset = 20, value = tok.SimpleToken.Minus},
-		{offset = 21, value = tok.Identifier("y")},
-		{offset = 22, value = tok.SimpleToken.NewLine},
-		{offset = 23, value = tok.Identifier("s")},
-		{offset = 25, value = tok.SimpleToken.Colon},
-		{offset = 26, value = tok.SimpleToken.Colon},
-		{offset = 28, value = tok.StringLiteral("hello")},
-		{offset = 35, value = tok.SimpleToken.NewLine},
-		{offset = 36, value = tok.Identifier("w")},
-		{offset = 38, value = tok.SimpleToken.Colon},
-		{offset = 39, value = tok.SimpleToken.Colon},
-		{offset = 41, value = tok.Identifier("x")},
-		{offset = 42, value = tok.SimpleToken.EOF},
+	tokens := []Token{
+		{offset = 0, value = IdentifierToken("y")},
+		{offset = 2, value = SimpleToken.Colon},
+		{offset = 3, value = SimpleToken.Colon},
+		{offset = 5, value = NumberToken("1")},
+		{offset = 7, value = SimpleToken.Plus},
+		{offset = 9, value = NumberToken("2")},
+		{offset = 11, value = SimpleToken.Star},
+		{offset = 13, value = NumberToken("3")},
+		{offset = 14, value = SimpleToken.NewLine},
+		{offset = 15, value = IdentifierToken("z")},
+		{offset = 17, value = SimpleToken.Colon},
+		{offset = 18, value = SimpleToken.Colon},
+		{offset = 20, value = SimpleToken.Minus},
+		{offset = 21, value = IdentifierToken("y")},
+		{offset = 22, value = SimpleToken.NewLine},
+		{offset = 23, value = IdentifierToken("s")},
+		{offset = 25, value = SimpleToken.Colon},
+		{offset = 26, value = SimpleToken.Colon},
+		{offset = 28, value = StringLiteralToken("hello")},
+		{offset = 35, value = SimpleToken.NewLine},
+		{offset = 36, value = IdentifierToken("w")},
+		{offset = 38, value = SimpleToken.Colon},
+		{offset = 39, value = SimpleToken.Colon},
+		{offset = 41, value = IdentifierToken("x")},
+		{offset = 42, value = SimpleToken.EOF},
 	}
 
 	program, ok, err := parse(tokens, new_test_arena(t))
@@ -938,15 +937,15 @@ test_parse_type_pointer_offsets :: proc(t: ^testing.T) {
 	// x : ^^int : 5 — the creating-token convention says each
 	// TypePointer.offset is the byte of its own `^`, not the byte
 	// after it. The ^s are at 4 and 5.
-	tokens := []tok.Token{
-		{offset = 0, value = tok.Identifier("x")},
-		{offset = 2, value = tok.SimpleToken.Colon},
-		{offset = 4, value = tok.SimpleToken.Hat},
-		{offset = 5, value = tok.SimpleToken.Hat},
-		{offset = 6, value = tok.Identifier("int")},
-		{offset = 9, value = tok.SimpleToken.Colon},
-		{offset = 11, value = tok.Number("5")},
-		{offset = 12, value = tok.SimpleToken.EOF},
+	tokens := []Token{
+		{offset = 0, value = IdentifierToken("x")},
+		{offset = 2, value = SimpleToken.Colon},
+		{offset = 4, value = SimpleToken.Hat},
+		{offset = 5, value = SimpleToken.Hat},
+		{offset = 6, value = IdentifierToken("int")},
+		{offset = 9, value = SimpleToken.Colon},
+		{offset = 11, value = NumberToken("5")},
+		{offset = 12, value = SimpleToken.EOF},
 	}
 
 	program, ok, err := parse(tokens, new_test_arena(t))
@@ -982,12 +981,12 @@ test_allocator_discipline :: proc(t: ^testing.T) {
 	arena: mem.Arena
 	mem.arena_init(&arena, buffer)
 
-	tokens := []tok.Token{
-		{offset = 0, value = tok.Identifier("x")},
-		{offset = 2, value = tok.SimpleToken.Colon},
-		{offset = 3, value = tok.SimpleToken.Colon},
-		{offset = 5, value = tok.Number("42")},
-		{offset = 7, value = tok.SimpleToken.EOF},
+	tokens := []Token{
+		{offset = 0, value = IdentifierToken("x")},
+		{offset = 2, value = SimpleToken.Colon},
+		{offset = 3, value = SimpleToken.Colon},
+		{offset = 5, value = NumberToken("42")},
+		{offset = 7, value = SimpleToken.EOF},
 	}
 
 	program: ^Program
@@ -1054,21 +1053,21 @@ test_parse_multiline_group_continues :: proc(t: ^testing.T) {
 	// operand on the second; the zone absorbs the newline between them.
 	// Must parse as (((4 + 2) + 3) + 5). RED: the Pratt loop stops at a
 	// NewLine today, so the group never finds its `)`.
-	tokens := []tok.Token{
-		{offset = 0, value = tok.Identifier("x")},
-		{offset = 2, value = tok.SimpleToken.Colon},
-		{offset = 3, value = tok.SimpleToken.Colon},
-		{offset = 5, value = tok.SimpleToken.LParen},
-		{offset = 6, value = tok.Number("4")},
-		{offset = 8, value = tok.SimpleToken.Plus},
-		{offset = 10, value = tok.Number("2")},
-		{offset = 12, value = tok.SimpleToken.Plus},
-		{offset = 13, value = tok.SimpleToken.NewLine},
-		{offset = 14, value = tok.Number("3")},
-		{offset = 16, value = tok.SimpleToken.Plus},
-		{offset = 18, value = tok.Number("5")},
-		{offset = 19, value = tok.SimpleToken.RParen},
-		{offset = 20, value = tok.SimpleToken.EOF},
+	tokens := []Token{
+		{offset = 0, value = IdentifierToken("x")},
+		{offset = 2, value = SimpleToken.Colon},
+		{offset = 3, value = SimpleToken.Colon},
+		{offset = 5, value = SimpleToken.LParen},
+		{offset = 6, value = NumberToken("4")},
+		{offset = 8, value = SimpleToken.Plus},
+		{offset = 10, value = NumberToken("2")},
+		{offset = 12, value = SimpleToken.Plus},
+		{offset = 13, value = SimpleToken.NewLine},
+		{offset = 14, value = NumberToken("3")},
+		{offset = 16, value = SimpleToken.Plus},
+		{offset = 18, value = NumberToken("5")},
+		{offset = 19, value = SimpleToken.RParen},
+		{offset = 20, value = SimpleToken.EOF},
 	}
 
 	program, ok, err := parse(tokens, new_test_arena(t))
@@ -1094,19 +1093,19 @@ test_parse_multiline_group_operator_on_next_line :: proc(t: ^testing.T) {
 	// operator starting the next. The Pratt *loop* must absorb the
 	// newline and see the `*`; without that, the group fails. RED: the
 	// loop stops at the NewLine today.
-	tokens := []tok.Token{
-		{offset = 0, value = tok.Identifier("x")},
-		{offset = 2, value = tok.SimpleToken.Colon},
-		{offset = 3, value = tok.SimpleToken.Colon},
-		{offset = 5, value = tok.SimpleToken.LParen},
-		{offset = 6, value = tok.Number("4")},
-		{offset = 8, value = tok.SimpleToken.Plus},
-		{offset = 10, value = tok.Number("2")},
-		{offset = 11, value = tok.SimpleToken.NewLine},
-		{offset = 12, value = tok.SimpleToken.Star},
-		{offset = 14, value = tok.Number("3")},
-		{offset = 15, value = tok.SimpleToken.RParen},
-		{offset = 16, value = tok.SimpleToken.EOF},
+	tokens := []Token{
+		{offset = 0, value = IdentifierToken("x")},
+		{offset = 2, value = SimpleToken.Colon},
+		{offset = 3, value = SimpleToken.Colon},
+		{offset = 5, value = SimpleToken.LParen},
+		{offset = 6, value = NumberToken("4")},
+		{offset = 8, value = SimpleToken.Plus},
+		{offset = 10, value = NumberToken("2")},
+		{offset = 11, value = SimpleToken.NewLine},
+		{offset = 12, value = SimpleToken.Star},
+		{offset = 14, value = NumberToken("3")},
+		{offset = 15, value = SimpleToken.RParen},
+		{offset = 16, value = SimpleToken.EOF},
 	}
 
 	program, ok, err := parse(tokens, new_test_arena(t))
@@ -1127,18 +1126,18 @@ test_parse_multiline_group_multiple_newlines :: proc(t: ^testing.T) {
 	// before them, the operand after. The operand-position site
 	// (parse_prefix) must skip both. RED: parse_prefix rejects the
 	// NewLine today.
-	tokens := []tok.Token{
-		{offset = 0, value = tok.Identifier("x")},
-		{offset = 2, value = tok.SimpleToken.Colon},
-		{offset = 3, value = tok.SimpleToken.Colon},
-		{offset = 5, value = tok.SimpleToken.LParen},
-		{offset = 6, value = tok.Number("4")},
-		{offset = 8, value = tok.SimpleToken.Plus},
-		{offset = 9, value = tok.SimpleToken.NewLine},
-		{offset = 10, value = tok.SimpleToken.NewLine},
-		{offset = 11, value = tok.Number("2")},
-		{offset = 12, value = tok.SimpleToken.RParen},
-		{offset = 13, value = tok.SimpleToken.EOF},
+	tokens := []Token{
+		{offset = 0, value = IdentifierToken("x")},
+		{offset = 2, value = SimpleToken.Colon},
+		{offset = 3, value = SimpleToken.Colon},
+		{offset = 5, value = SimpleToken.LParen},
+		{offset = 6, value = NumberToken("4")},
+		{offset = 8, value = SimpleToken.Plus},
+		{offset = 9, value = SimpleToken.NewLine},
+		{offset = 10, value = SimpleToken.NewLine},
+		{offset = 11, value = NumberToken("2")},
+		{offset = 12, value = SimpleToken.RParen},
+		{offset = 13, value = SimpleToken.EOF},
 	}
 
 	program, ok, err := parse(tokens, new_test_arena(t))
@@ -1158,21 +1157,21 @@ test_parse_multiline_group_nested :: proc(t: ^testing.T) {
 	// x :: ((4 +\n2) + 3) — zones nest; each group pushes and pops its
 	// own depth, so the inner newline is absorbed and the outer one
 	// (after the inner `)`) still ends the outer expression. RED today.
-	tokens := []tok.Token{
-		{offset = 0, value = tok.Identifier("x")},
-		{offset = 2, value = tok.SimpleToken.Colon},
-		{offset = 3, value = tok.SimpleToken.Colon},
-		{offset = 5, value = tok.SimpleToken.LParen},
-		{offset = 6, value = tok.SimpleToken.LParen},
-		{offset = 7, value = tok.Number("4")},
-		{offset = 9, value = tok.SimpleToken.Plus},
-		{offset = 10, value = tok.SimpleToken.NewLine},
-		{offset = 11, value = tok.Number("2")},
-		{offset = 12, value = tok.SimpleToken.RParen},
-		{offset = 14, value = tok.SimpleToken.Plus},
-		{offset = 16, value = tok.Number("3")},
-		{offset = 17, value = tok.SimpleToken.RParen},
-		{offset = 18, value = tok.SimpleToken.EOF},
+	tokens := []Token{
+		{offset = 0, value = IdentifierToken("x")},
+		{offset = 2, value = SimpleToken.Colon},
+		{offset = 3, value = SimpleToken.Colon},
+		{offset = 5, value = SimpleToken.LParen},
+		{offset = 6, value = SimpleToken.LParen},
+		{offset = 7, value = NumberToken("4")},
+		{offset = 9, value = SimpleToken.Plus},
+		{offset = 10, value = SimpleToken.NewLine},
+		{offset = 11, value = NumberToken("2")},
+		{offset = 12, value = SimpleToken.RParen},
+		{offset = 14, value = SimpleToken.Plus},
+		{offset = 16, value = NumberToken("3")},
+		{offset = 17, value = SimpleToken.RParen},
+		{offset = 18, value = SimpleToken.EOF},
 	}
 
 	program, ok, err := parse(tokens, new_test_arena(t))
@@ -1193,21 +1192,21 @@ test_parse_multiline_group_then_newline_ends_expression :: proc(t: ^testing.T) {
 	// to zero, and the newline ends the declaration again. This pins
 	// that zone state does not leak past the closer. Green today and
 	// green after: it is the guardrail for the depth discipline.
-	tokens := []tok.Token{
-		{offset = 0, value = tok.Identifier("x")},
-		{offset = 2, value = tok.SimpleToken.Colon},
-		{offset = 3, value = tok.SimpleToken.Colon},
-		{offset = 5, value = tok.SimpleToken.LParen},
-		{offset = 6, value = tok.Number("4")},
-		{offset = 8, value = tok.SimpleToken.Plus},
-		{offset = 10, value = tok.Number("2")},
-		{offset = 11, value = tok.SimpleToken.RParen},
-		{offset = 12, value = tok.SimpleToken.NewLine},
-		{offset = 13, value = tok.Identifier("y")},
-		{offset = 15, value = tok.SimpleToken.Colon},
-		{offset = 16, value = tok.SimpleToken.Colon},
-		{offset = 18, value = tok.Number("5")},
-		{offset = 19, value = tok.SimpleToken.EOF},
+	tokens := []Token{
+		{offset = 0, value = IdentifierToken("x")},
+		{offset = 2, value = SimpleToken.Colon},
+		{offset = 3, value = SimpleToken.Colon},
+		{offset = 5, value = SimpleToken.LParen},
+		{offset = 6, value = NumberToken("4")},
+		{offset = 8, value = SimpleToken.Plus},
+		{offset = 10, value = NumberToken("2")},
+		{offset = 11, value = SimpleToken.RParen},
+		{offset = 12, value = SimpleToken.NewLine},
+		{offset = 13, value = IdentifierToken("y")},
+		{offset = 15, value = SimpleToken.Colon},
+		{offset = 16, value = SimpleToken.Colon},
+		{offset = 18, value = NumberToken("5")},
+		{offset = 19, value = SimpleToken.EOF},
 	}
 
 	program, ok, err := parse(tokens, new_test_arena(t))
@@ -1227,17 +1226,17 @@ test_parse_rejects_parenless_continuation :: proc(t: ^testing.T) {
 	// zone the newline ends the expression, and `+ 3` cannot start a
 	// declaration. Green today and green after: the decision must not
 	// accidentally relax this.
-	tokens := []tok.Token{
-		{offset = 0, value = tok.Identifier("x")},
-		{offset = 2, value = tok.SimpleToken.Colon},
-		{offset = 3, value = tok.SimpleToken.Colon},
-		{offset = 5, value = tok.Number("4")},
-		{offset = 7, value = tok.SimpleToken.Plus},
-		{offset = 9, value = tok.Number("2")},
-		{offset = 10, value = tok.SimpleToken.NewLine},
-		{offset = 11, value = tok.SimpleToken.Plus},
-		{offset = 13, value = tok.Number("3")},
-		{offset = 14, value = tok.SimpleToken.EOF},
+	tokens := []Token{
+		{offset = 0, value = IdentifierToken("x")},
+		{offset = 2, value = SimpleToken.Colon},
+		{offset = 3, value = SimpleToken.Colon},
+		{offset = 5, value = NumberToken("4")},
+		{offset = 7, value = SimpleToken.Plus},
+		{offset = 9, value = NumberToken("2")},
+		{offset = 10, value = SimpleToken.NewLine},
+		{offset = 11, value = SimpleToken.Plus},
+		{offset = 13, value = NumberToken("3")},
+		{offset = 14, value = SimpleToken.EOF},
 	}
 
 	program, ok, _ := parse(tokens, new_test_arena(t))
@@ -1251,15 +1250,15 @@ test_parse_rejects_trailing_operator_at_newline :: proc(t: ^testing.T) {
 	// with a full operand waiting on the next line. Without parens the
 	// newline ends the expression, so the dangling `+` still has no
 	// right operand to grab. The zone rule must not absorb this.
-	tokens := []tok.Token{
-		{offset = 0, value = tok.Identifier("x")},
-		{offset = 2, value = tok.SimpleToken.Colon},
-		{offset = 3, value = tok.SimpleToken.Colon},
-		{offset = 5, value = tok.Number("4")},
-		{offset = 7, value = tok.SimpleToken.Plus},
-		{offset = 8, value = tok.SimpleToken.NewLine},
-		{offset = 9, value = tok.Number("2")},
-		{offset = 10, value = tok.SimpleToken.EOF},
+	tokens := []Token{
+		{offset = 0, value = IdentifierToken("x")},
+		{offset = 2, value = SimpleToken.Colon},
+		{offset = 3, value = SimpleToken.Colon},
+		{offset = 5, value = NumberToken("4")},
+		{offset = 7, value = SimpleToken.Plus},
+		{offset = 8, value = SimpleToken.NewLine},
+		{offset = 9, value = NumberToken("2")},
+		{offset = 10, value = SimpleToken.EOF},
 	}
 
 	program, ok, _ := parse(tokens, new_test_arena(t))
@@ -1276,20 +1275,20 @@ test_parse_rejects_unclosed_zone_swallowing_decl :: proc(t: ^testing.T) {
 	// parses `y`, and still never finds its `)`). When recovery lands,
 	// declaration start must resync even inside a zone; this test is
 	// the guardrail for that too.
-	tokens := []tok.Token{
-		{offset = 0, value = tok.Identifier("x")},
-		{offset = 2, value = tok.SimpleToken.Colon},
-		{offset = 3, value = tok.SimpleToken.Colon},
-		{offset = 5, value = tok.SimpleToken.LParen},
-		{offset = 6, value = tok.Number("4")},
-		{offset = 8, value = tok.SimpleToken.Plus},
-		{offset = 10, value = tok.Number("2")},
-		{offset = 11, value = tok.SimpleToken.NewLine},
-		{offset = 12, value = tok.Identifier("y")},
-		{offset = 14, value = tok.SimpleToken.Colon},
-		{offset = 15, value = tok.SimpleToken.Colon},
-		{offset = 17, value = tok.Number("5")},
-		{offset = 18, value = tok.SimpleToken.EOF},
+	tokens := []Token{
+		{offset = 0, value = IdentifierToken("x")},
+		{offset = 2, value = SimpleToken.Colon},
+		{offset = 3, value = SimpleToken.Colon},
+		{offset = 5, value = SimpleToken.LParen},
+		{offset = 6, value = NumberToken("4")},
+		{offset = 8, value = SimpleToken.Plus},
+		{offset = 10, value = NumberToken("2")},
+		{offset = 11, value = SimpleToken.NewLine},
+		{offset = 12, value = IdentifierToken("y")},
+		{offset = 14, value = SimpleToken.Colon},
+		{offset = 15, value = SimpleToken.Colon},
+		{offset = 17, value = NumberToken("5")},
+		{offset = 18, value = SimpleToken.EOF},
 	}
 
 	program, ok, _ := parse(tokens, new_test_arena(t))
@@ -1311,17 +1310,17 @@ test_parse_multiline_group_newline_before_closer :: proc(t: ^testing.T) {
 	// must still be found: the zone absorbs the newline, then ends.
 	// RED against baseline: the loop stops at the NewLine and the
 	// group never reaches its `)`.
-	tokens := []tok.Token{
-		{offset = 0, value = tok.Identifier("x")},
-		{offset = 2, value = tok.SimpleToken.Colon},
-		{offset = 3, value = tok.SimpleToken.Colon},
-		{offset = 5, value = tok.SimpleToken.LParen},
-		{offset = 6, value = tok.Number("4")},
-		{offset = 8, value = tok.SimpleToken.Plus},
-		{offset = 10, value = tok.Number("2")},
-		{offset = 11, value = tok.SimpleToken.NewLine},
-		{offset = 12, value = tok.SimpleToken.RParen},
-		{offset = 13, value = tok.SimpleToken.EOF},
+	tokens := []Token{
+		{offset = 0, value = IdentifierToken("x")},
+		{offset = 2, value = SimpleToken.Colon},
+		{offset = 3, value = SimpleToken.Colon},
+		{offset = 5, value = SimpleToken.LParen},
+		{offset = 6, value = NumberToken("4")},
+		{offset = 8, value = SimpleToken.Plus},
+		{offset = 10, value = NumberToken("2")},
+		{offset = 11, value = SimpleToken.NewLine},
+		{offset = 12, value = SimpleToken.RParen},
+		{offset = 13, value = SimpleToken.EOF},
 	}
 
 	program, ok, err := parse(tokens, new_test_arena(t))
@@ -1339,21 +1338,21 @@ test_parse_multiline_group_triple_nested :: proc(t: ^testing.T) {
 	// x :: (((4 +\n2))) — three zones deep, one newline at the bottom.
 	// Every push must be matched by a pop: the inner newline is
 	// absorbed, and all three closers resolve. RED against baseline.
-	tokens := []tok.Token{
-		{offset = 0, value = tok.Identifier("x")},
-		{offset = 2, value = tok.SimpleToken.Colon},
-		{offset = 3, value = tok.SimpleToken.Colon},
-		{offset = 5, value = tok.SimpleToken.LParen},
-		{offset = 6, value = tok.SimpleToken.LParen},
-		{offset = 7, value = tok.SimpleToken.LParen},
-		{offset = 8, value = tok.Number("4")},
-		{offset = 10, value = tok.SimpleToken.Plus},
-		{offset = 11, value = tok.SimpleToken.NewLine},
-		{offset = 12, value = tok.Number("2")},
-		{offset = 13, value = tok.SimpleToken.RParen},
-		{offset = 14, value = tok.SimpleToken.RParen},
-		{offset = 15, value = tok.SimpleToken.RParen},
-		{offset = 16, value = tok.SimpleToken.EOF},
+	tokens := []Token{
+		{offset = 0, value = IdentifierToken("x")},
+		{offset = 2, value = SimpleToken.Colon},
+		{offset = 3, value = SimpleToken.Colon},
+		{offset = 5, value = SimpleToken.LParen},
+		{offset = 6, value = SimpleToken.LParen},
+		{offset = 7, value = SimpleToken.LParen},
+		{offset = 8, value = NumberToken("4")},
+		{offset = 10, value = SimpleToken.Plus},
+		{offset = 11, value = SimpleToken.NewLine},
+		{offset = 12, value = NumberToken("2")},
+		{offset = 13, value = SimpleToken.RParen},
+		{offset = 14, value = SimpleToken.RParen},
+		{offset = 15, value = SimpleToken.RParen},
+		{offset = 16, value = SimpleToken.EOF},
 	}
 
 	program, ok, err := parse(tokens, new_test_arena(t))
@@ -1373,16 +1372,16 @@ test_parse_multiline_group_unary_across_newline :: proc(t: ^testing.T) {
 	// x :: (-\n5) — the unary arm also rides the zone: the operand may
 	// start on the next line. RED against baseline: parse_prefix meets
 	// the NewLine at the operand position and refuses it.
-	tokens := []tok.Token{
-		{offset = 0, value = tok.Identifier("x")},
-		{offset = 2, value = tok.SimpleToken.Colon},
-		{offset = 3, value = tok.SimpleToken.Colon},
-		{offset = 5, value = tok.SimpleToken.LParen},
-		{offset = 6, value = tok.SimpleToken.Minus},
-		{offset = 7, value = tok.SimpleToken.NewLine},
-		{offset = 8, value = tok.Number("5")},
-		{offset = 9, value = tok.SimpleToken.RParen},
-		{offset = 10, value = tok.SimpleToken.EOF},
+	tokens := []Token{
+		{offset = 0, value = IdentifierToken("x")},
+		{offset = 2, value = SimpleToken.Colon},
+		{offset = 3, value = SimpleToken.Colon},
+		{offset = 5, value = SimpleToken.LParen},
+		{offset = 6, value = SimpleToken.Minus},
+		{offset = 7, value = SimpleToken.NewLine},
+		{offset = 8, value = NumberToken("5")},
+		{offset = 9, value = SimpleToken.RParen},
+		{offset = 10, value = SimpleToken.EOF},
 	}
 
 	program, ok, err := parse(tokens, new_test_arena(t))
@@ -1401,14 +1400,14 @@ test_parse_rejects_unary_at_newline_at_depth_zero :: proc(t: ^testing.T) {
 	// the newline still ends the expression and the unary `-` is left
 	// dangling with no operand. The zone is what licenses continuation;
 	// depth 0 must not quietly grow that licence.
-	tokens := []tok.Token{
-		{offset = 0, value = tok.Identifier("x")},
-		{offset = 2, value = tok.SimpleToken.Colon},
-		{offset = 3, value = tok.SimpleToken.Colon},
-		{offset = 5, value = tok.SimpleToken.Minus},
-		{offset = 6, value = tok.SimpleToken.NewLine},
-		{offset = 7, value = tok.Number("5")},
-		{offset = 8, value = tok.SimpleToken.EOF},
+	tokens := []Token{
+		{offset = 0, value = IdentifierToken("x")},
+		{offset = 2, value = SimpleToken.Colon},
+		{offset = 3, value = SimpleToken.Colon},
+		{offset = 5, value = SimpleToken.Minus},
+		{offset = 6, value = SimpleToken.NewLine},
+		{offset = 7, value = NumberToken("5")},
+		{offset = 8, value = SimpleToken.EOF},
 	}
 
 	program, ok, _ := parse(tokens, new_test_arena(t))
@@ -1421,16 +1420,16 @@ test_parse_zone_closes_and_binary_continues_same_line :: proc(t: ^testing.T) {
 	// x :: (4) + 2 — the counter must return to 0 the moment the `)`
 	// matches, not lazily: a same-line binary operator after the closer
 	// still binds at depth 0. If the pop were delayed, this would break.
-	tokens := []tok.Token{
-		{offset = 0, value = tok.Identifier("x")},
-		{offset = 2, value = tok.SimpleToken.Colon},
-		{offset = 3, value = tok.SimpleToken.Colon},
-		{offset = 5, value = tok.SimpleToken.LParen},
-		{offset = 6, value = tok.Number("4")},
-		{offset = 7, value = tok.SimpleToken.RParen},
-		{offset = 9, value = tok.SimpleToken.Plus},
-		{offset = 11, value = tok.Number("2")},
-		{offset = 12, value = tok.SimpleToken.EOF},
+	tokens := []Token{
+		{offset = 0, value = IdentifierToken("x")},
+		{offset = 2, value = SimpleToken.Colon},
+		{offset = 3, value = SimpleToken.Colon},
+		{offset = 5, value = SimpleToken.LParen},
+		{offset = 6, value = NumberToken("4")},
+		{offset = 7, value = SimpleToken.RParen},
+		{offset = 9, value = SimpleToken.Plus},
+		{offset = 11, value = NumberToken("2")},
+		{offset = 12, value = SimpleToken.EOF},
 	}
 
 	program, ok, err := parse(tokens, new_test_arena(t))
@@ -1451,15 +1450,15 @@ test_parse_rejects_stray_closer_after_zone :: proc(t: ^testing.T) {
 	// to 0; the second `)` is then a stray closer at depth 0 and must
 	// be rejected. The counter must not swallow extra closers on its way
 	// down — a pop matches a push, one for one.
-	tokens := []tok.Token{
-		{offset = 0, value = tok.Identifier("x")},
-		{offset = 2, value = tok.SimpleToken.Colon},
-		{offset = 3, value = tok.SimpleToken.Colon},
-		{offset = 5, value = tok.SimpleToken.LParen},
-		{offset = 6, value = tok.Number("4")},
-		{offset = 7, value = tok.SimpleToken.RParen},
-		{offset = 8, value = tok.SimpleToken.RParen},
-		{offset = 9, value = tok.SimpleToken.EOF},
+	tokens := []Token{
+		{offset = 0, value = IdentifierToken("x")},
+		{offset = 2, value = SimpleToken.Colon},
+		{offset = 3, value = SimpleToken.Colon},
+		{offset = 5, value = SimpleToken.LParen},
+		{offset = 6, value = NumberToken("4")},
+		{offset = 7, value = SimpleToken.RParen},
+		{offset = 8, value = SimpleToken.RParen},
+		{offset = 9, value = SimpleToken.EOF},
 	}
 
 	program, ok, _ := parse(tokens, new_test_arena(t))
@@ -1475,17 +1474,17 @@ test_parse_rejects_newline_before_value :: proc(t: ^testing.T) {
 	// no header to attach to. Green today (the newline is neither `::`
 	// nor a type, so parse_decl's type-slot disambiguation refuses it);
 	// this pins the accident as a rule.
-	tokens := []tok.Token{
-		{offset = 0, value = tok.Identifier("x")},
-		{offset = 2, value = tok.SimpleToken.Colon},
-		{offset = 3, value = tok.SimpleToken.Colon},
-		{offset = 4, value = tok.SimpleToken.NewLine},
-		{offset = 5, value = tok.SimpleToken.LParen},
-		{offset = 6, value = tok.Number("3")},
-		{offset = 8, value = tok.SimpleToken.Plus},
-		{offset = 10, value = tok.Number("4")},
-		{offset = 11, value = tok.SimpleToken.RParen},
-		{offset = 12, value = tok.SimpleToken.EOF},
+	tokens := []Token{
+		{offset = 0, value = IdentifierToken("x")},
+		{offset = 2, value = SimpleToken.Colon},
+		{offset = 3, value = SimpleToken.Colon},
+		{offset = 4, value = SimpleToken.NewLine},
+		{offset = 5, value = SimpleToken.LParen},
+		{offset = 6, value = NumberToken("3")},
+		{offset = 8, value = SimpleToken.Plus},
+		{offset = 10, value = NumberToken("4")},
+		{offset = 11, value = SimpleToken.RParen},
+		{offset = 12, value = SimpleToken.EOF},
 	}
 
 	program, ok, _ := parse(tokens, new_test_arena(t))
@@ -1500,16 +1499,16 @@ test_parse_rejects_second_decl_on_same_line :: proc(t: ^testing.T) {
 	// line is an error. RED against the committed baseline, where the
 	// parse loop happily consumed the second decl after the newline-free
 	// gap.
-	tokens := []tok.Token{
-		{offset = 0, value = tok.Identifier("x")},
-		{offset = 2, value = tok.SimpleToken.Colon},
-		{offset = 3, value = tok.SimpleToken.Colon},
-		{offset = 5, value = tok.Number("5")},
-		{offset = 7, value = tok.Identifier("y")},
-		{offset = 9, value = tok.SimpleToken.Colon},
-		{offset = 10, value = tok.SimpleToken.Colon},
-		{offset = 12, value = tok.Number("6")},
-		{offset = 13, value = tok.SimpleToken.EOF},
+	tokens := []Token{
+		{offset = 0, value = IdentifierToken("x")},
+		{offset = 2, value = SimpleToken.Colon},
+		{offset = 3, value = SimpleToken.Colon},
+		{offset = 5, value = NumberToken("5")},
+		{offset = 7, value = IdentifierToken("y")},
+		{offset = 9, value = SimpleToken.Colon},
+		{offset = 10, value = SimpleToken.Colon},
+		{offset = 12, value = NumberToken("6")},
+		{offset = 13, value = SimpleToken.EOF},
 	}
 
 	program, ok, _ := parse(tokens, new_test_arena(t))
@@ -1529,13 +1528,13 @@ test_zoning_pre_parse_braces_are_not_zones :: proc(t: ^testing.T) {
 	// the block survives. If the pre-pass treated { } as a zone, block
 	// statements would silently merge into one expression — statement
 	// separation lost without a single error. This pins the asymmetry.
-	tokens := []tok.Token{
-		{offset = 0, value = tok.SimpleToken.LSquirly},
-		{offset = 2, value = tok.Number("4")},
-		{offset = 4, value = tok.SimpleToken.NewLine},
-		{offset = 6, value = tok.Number("2")},
-		{offset = 8, value = tok.SimpleToken.RSquirly},
-		{offset = 9, value = tok.SimpleToken.EOF},
+	tokens := []Token{
+		{offset = 0, value = SimpleToken.LSquirly},
+		{offset = 2, value = NumberToken("4")},
+		{offset = 4, value = SimpleToken.NewLine},
+		{offset = 6, value = NumberToken("2")},
+		{offset = 8, value = SimpleToken.RSquirly},
+		{offset = 9, value = SimpleToken.EOF},
 	}
 
 	filtered := zoning_pre_parse(tokens, new_test_arena(t))
@@ -1544,7 +1543,7 @@ test_zoning_pre_parse_braces_are_not_zones :: proc(t: ^testing.T) {
 		return
 	}
 
-	if simple, ok := filtered[2].value.(tok.SimpleToken); ok {
+	if simple, ok := filtered[2].value.(SimpleToken); ok {
 		testing.expectf(t, simple == .NewLine, "want the NewLine to survive, got %v", simple)
 	} else {
 		testing.expect(t, false, "want a SimpleToken at index 2")
@@ -1560,16 +1559,16 @@ test_zoning_pre_parse_stray_closer_does_not_poison :: proc(t: ^testing.T) {
 	// dropped. Without the clamp the interior NewLine survives too, and
 	// a perfectly balanced zone expression breaks — the poisoning the
 	// one-line guard prevents.
-	tokens := []tok.Token{
-		{offset = 0, value = tok.SimpleToken.RParen},
-		{offset = 1, value = tok.SimpleToken.NewLine},
-		{offset = 3, value = tok.SimpleToken.LParen},
-		{offset = 4, value = tok.Number("4")},
-		{offset = 6, value = tok.SimpleToken.Plus},
-		{offset = 8, value = tok.SimpleToken.NewLine},
-		{offset = 10, value = tok.Number("2")},
-		{offset = 11, value = tok.SimpleToken.RParen},
-		{offset = 13, value = tok.SimpleToken.EOF},
+	tokens := []Token{
+		{offset = 0, value = SimpleToken.RParen},
+		{offset = 1, value = SimpleToken.NewLine},
+		{offset = 3, value = SimpleToken.LParen},
+		{offset = 4, value = NumberToken("4")},
+		{offset = 6, value = SimpleToken.Plus},
+		{offset = 8, value = SimpleToken.NewLine},
+		{offset = 10, value = NumberToken("2")},
+		{offset = 11, value = SimpleToken.RParen},
+		{offset = 13, value = SimpleToken.EOF},
 	}
 
 	filtered := zoning_pre_parse(tokens, new_test_arena(t))
@@ -1579,7 +1578,7 @@ test_zoning_pre_parse_stray_closer_does_not_poison :: proc(t: ^testing.T) {
 	}
 
 	// The stray closer and the depth-0 newline survive...
-	if simple, ok := filtered[1].value.(tok.SimpleToken); ok {
+	if simple, ok := filtered[1].value.(SimpleToken); ok {
 		testing.expectf(t, simple == .NewLine, "want the depth-0 NewLine to survive, got %v", simple)
 	} else {
 		testing.expect(t, false, "want a SimpleToken at index 1")
@@ -1598,31 +1597,31 @@ test_parse_multiline_group_inside_block :: proc(t: ^testing.T) {
 	// main :: proc() {\n(1 +\n2)\n(3 +\n4)\n} — two statements, each a
 	// multi-line group. The block body stays newline-separated (braces
 	// are not zones); the groups absorb their own newlines.
-	tokens := []tok.Token{
-		{offset = 0, value = tok.Identifier("main")},
-		{offset = 5, value = tok.SimpleToken.Colon},
-		{offset = 6, value = tok.SimpleToken.Colon},
-		{offset = 8, value = tok.Keyword.Proc},
-		{offset = 12, value = tok.SimpleToken.LParen},
-		{offset = 13, value = tok.SimpleToken.RParen},
-		{offset = 15, value = tok.SimpleToken.LSquirly},
-		{offset = 16, value = tok.SimpleToken.NewLine},
-		{offset = 17, value = tok.SimpleToken.LParen},
-		{offset = 18, value = tok.Number("1")},
-		{offset = 20, value = tok.SimpleToken.Plus},
-		{offset = 21, value = tok.SimpleToken.NewLine},
-		{offset = 22, value = tok.Number("2")},
-		{offset = 23, value = tok.SimpleToken.RParen},
-		{offset = 24, value = tok.SimpleToken.NewLine},
-		{offset = 25, value = tok.SimpleToken.LParen},
-		{offset = 26, value = tok.Number("3")},
-		{offset = 28, value = tok.SimpleToken.Plus},
-		{offset = 29, value = tok.SimpleToken.NewLine},
-		{offset = 30, value = tok.Number("4")},
-		{offset = 31, value = tok.SimpleToken.RParen},
-		{offset = 32, value = tok.SimpleToken.NewLine},
-		{offset = 33, value = tok.SimpleToken.RSquirly},
-		{offset = 34, value = tok.SimpleToken.EOF},
+	tokens := []Token{
+		{offset = 0, value = IdentifierToken("main")},
+		{offset = 5, value = SimpleToken.Colon},
+		{offset = 6, value = SimpleToken.Colon},
+		{offset = 8, value = KeywordToken.Proc},
+		{offset = 12, value = SimpleToken.LParen},
+		{offset = 13, value = SimpleToken.RParen},
+		{offset = 15, value = SimpleToken.LSquirly},
+		{offset = 16, value = SimpleToken.NewLine},
+		{offset = 17, value = SimpleToken.LParen},
+		{offset = 18, value = NumberToken("1")},
+		{offset = 20, value = SimpleToken.Plus},
+		{offset = 21, value = SimpleToken.NewLine},
+		{offset = 22, value = NumberToken("2")},
+		{offset = 23, value = SimpleToken.RParen},
+		{offset = 24, value = SimpleToken.NewLine},
+		{offset = 25, value = SimpleToken.LParen},
+		{offset = 26, value = NumberToken("3")},
+		{offset = 28, value = SimpleToken.Plus},
+		{offset = 29, value = SimpleToken.NewLine},
+		{offset = 30, value = NumberToken("4")},
+		{offset = 31, value = SimpleToken.RParen},
+		{offset = 32, value = SimpleToken.NewLine},
+		{offset = 33, value = SimpleToken.RSquirly},
+		{offset = 34, value = SimpleToken.EOF},
 	}
 
 	program, ok, err := parse(tokens, new_test_arena(t))
@@ -1646,18 +1645,18 @@ test_parse_multiline_args :: proc(t: ^testing.T) {
 	// x :: f(a,\nb) — the comma's newline is absorbed inside the call's
 	// paren zone. The Call node owns the args; the `(` offset 7 is the
 	// creating token per the AST convention.
-	tokens := []tok.Token{
-		{offset = 0, value = tok.Identifier("x")},
-		{offset = 2, value = tok.SimpleToken.Colon},
-		{offset = 3, value = tok.SimpleToken.Colon},
-		{offset = 5, value = tok.Identifier("f")},
-		{offset = 7, value = tok.SimpleToken.LParen},
-		{offset = 8, value = tok.Identifier("a")},
-		{offset = 9, value = tok.SimpleToken.Comma},
-		{offset = 10, value = tok.SimpleToken.NewLine},
-		{offset = 11, value = tok.Identifier("b")},
-		{offset = 12, value = tok.SimpleToken.RParen},
-		{offset = 13, value = tok.SimpleToken.EOF},
+	tokens := []Token{
+		{offset = 0, value = IdentifierToken("x")},
+		{offset = 2, value = SimpleToken.Colon},
+		{offset = 3, value = SimpleToken.Colon},
+		{offset = 5, value = IdentifierToken("f")},
+		{offset = 7, value = SimpleToken.LParen},
+		{offset = 8, value = IdentifierToken("a")},
+		{offset = 9, value = SimpleToken.Comma},
+		{offset = 10, value = SimpleToken.NewLine},
+		{offset = 11, value = IdentifierToken("b")},
+		{offset = 12, value = SimpleToken.RParen},
+		{offset = 13, value = SimpleToken.EOF},
 	}
 
 	program, ok, err := parse(tokens, new_test_arena(t))

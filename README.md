@@ -12,11 +12,11 @@ A consistent syntax that just does what people want it to do — see [docs/desig
 
 ## What's here
 
-- A **cursor-based lexer** (`lexer/`) that turns source text into a token stream.
+- A **cursor-based lexer** that turns source text into a token stream.
 - Tokens carry **byte offsets**, not line/column numbers — positions stay O(1) to jump to, and the editor/compiler pipeline never has to count newlines.
 - **Newlines are explicit tokens**, so the parser decides whether one ends a statement.
 - Token values are **zero-copy slices** of the source; strings are escape-aware (`\"`, `\\`).
-- **Table-driven test suites** (`lexer/lexer_test.odin`, `parser/parser_test.odin`) run with `devenv shell --quiet odin test lexer/` and `devenv shell --quiet odin test parser/` — one package per invocation, since `odin test` takes a single directory.
+- **Table-driven test suites** (`compiler/lexer_test.odin`, `compiler/parser_test.odin`, ...) run with one command — `devenv shell --quiet odin test compiler/`; the whole compiler is a single package, so one invocation runs everything.
 
 ## The lexer at a glance
 
@@ -49,7 +49,7 @@ The toolchain (Odin master, gdb, gf2) is declared in the **devenv flake** (`deve
 
 1. Install [Nix](https://nixos.org/download) (flakes enabled).
 2. Enter the environment: `devenv shell` (first run compiles Odin from master — grab a coffee).
-3. Run it: `devenv shell --quiet odin run .` · test: `devenv shell --quiet odin test lexer/` and `devenv shell --quiet odin test parser/`.
+3. Run it: `devenv shell --quiet odin run .` · test: `devenv shell --quiet odin test compiler/`.
 
 (`nix develop --no-pure-eval` enters the same environment.)
 
@@ -58,7 +58,7 @@ The toolchain (Odin master, gdb, gf2) is declared in the **devenv flake** (`deve
 **Option A — WSL2 + Nix (recommended).** The flake targets Linux; run it inside WSL2:
 
 1. Install [WSL2](https://learn.microsoft.com/windows/wsl/install), then Nix inside it.
-2. `devenv shell`, then `odin run .` / `odin test lexer/` + `odin test parser/`.
+2. `devenv shell`, then `odin run .` / `odin test compiler/`.
 3. The gf2 debugger works through [WSLg](https://learn.microsoft.com/windows/wsl/tutorials/gui-apps) (Windows 11).
 
 **Option B — native.** Install Odin directly:
@@ -68,7 +68,7 @@ scoop install odin
 # or download the nightly from https://odin-lang.org
 ```
 
-Then `odin run .` and `odin test lexer/` / `odin test parser/` work with no Nix involved.
+Then `odin run .` and `odin test compiler/` work with no Nix involved.
 
 ### macOS
 
@@ -79,8 +79,7 @@ Then `odin run .` and `odin test lexer/` / `odin test parser/` work with no Nix 
 ```sh
 brew install odin
 odin run .
-odin test lexer/
-odin test parser/
+odin test compiler/
 ```
 
 ### Odin master without the project flake

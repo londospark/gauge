@@ -120,7 +120,7 @@ handled in `parse_prefix`, entirely outside the binding-power table:
 ## The code shape
 
 ```odin
-binding_power :: proc(token: tok.Token) -> (Binding_Power, bool) {
+binding_power :: proc(token: Token) -> (Binding_Power, bool) {
 	// the pair for the token; the bool answers "is this even an operator?"
 	// (a number, an identifier, EOF, NewLine -> false -> the loop stops)
 }

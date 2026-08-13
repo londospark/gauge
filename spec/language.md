@@ -614,6 +614,12 @@ as `double`, literals verbatim; C's implicit conversions bridge the split.
 Strings emit as the §11.17 pointer+length pair, never C strings — the
 compiler computes the length at compile time.
 
+**The codegen entry point** takes the AST and the allocator (§11.12) and
+returns C text with no error return: codegen-visible failures — undeclared
+identifiers, duplicate declarations, dependency cycles — are delegated to
+cc, which reports them (in gauge coordinates once §11.21's `#line` lands).
+The error handler is the C compiler.
+
 **Forward references.** Consts may reference forward (§11.3); C demands
 declaration-before-use. Because gauge consts are pure, the emitter orders
 declarations by dependency (a topological sort over identifier

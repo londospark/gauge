@@ -6,14 +6,14 @@ Guidance for AI agents and contributors working on gauge.
 
 All tools live in the project's devenv shell — there is nothing installed ad-hoc:
 
-- Tests: `devenv shell --quiet odin test lexer/`, `devenv shell --quiet odin test parser/`, and `devenv shell --quiet odin test integration/` (one package per invocation — `odin test` takes a single directory)
+- Tests: `devenv shell --quiet odin test compiler/` — the whole compiler is one package, so one invocation runs every suite
 - Run the demo: `devenv shell --quiet odin run .`
 - Build: `devenv shell --quiet odin build .`
 - Debug build: `devenv shell --quiet odin build . -debug`, then `devenv shell --quiet gf2 ./gauge`
 
 ## Workflow
 
-- **Run the tests before every commit and push.** `devenv shell --quiet odin test lexer/`, `devenv shell --quiet odin test parser/`, and `devenv shell --quiet odin test integration/` must pass; suites live next to their packages (`lexer/lexer_test.odin`, `parser/parser_test.odin`, `integration/integration_test.odin`).
+- **Run the tests before every commit and push.** `devenv shell --quiet odin test compiler/` must pass; the suite lives in `compiler/` (`compiler/lexer_test.odin`, `compiler/parser_test.odin`, `compiler/integration_test.odin`, `compiler/codegen_test.odin`).
 - **Scan for `@Note` before every commit.** Grep the code for `@Note` and review each one — confirm it's a deliberate design decision or flag it for action. Once a note is reviewed, mark it with a `// @Review:` resolution line so it's visibly settled; reviewed notes don't need re-reviewing on future commits.
 - **Keep `spec/grammar.cf` and `spec/language.md` in sync before every commit.** Any change to lexer or parser behaviour — tokens, precedence, grammar, diagnostics, invariants — must be reflected in the spec, and the spec change lands in the same commit as the code it describes. An out-of-date spec is a broken signal, and the maintainer treats it as such.
   The two files have different jobs: `language.md` is the design and the
@@ -21,7 +21,7 @@ All tools live in the project's devenv shell — there is nothing installed ad-h
   implementation; `grammar.cf` is the implementation snapshot, and its active
   rules must match the code exactly. When the two disagree, the code is the
   tiebreaker: fix `grammar.cf`, not `language.md`.
-- When lexer behaviour changes, update the expected tokens in `lexer/lexer_test.odin` — offsets included.
+- When lexer behaviour changes, update the expected tokens in `compiler/lexer_test.odin` — offsets included.
 - Keep the Sublime build systems (`gauge.sublime-project`) and `.project.gf` in sync with any command or debugger changes.
 - Comments explain **why**, never restate the code.
 
@@ -41,13 +41,13 @@ All tools live in the project's devenv shell — there is nothing installed ad-h
 ## Design notes
 
 - Code semantics — panic-vs-error (compiler bugs vs source bugs), `(T, bool)` + `or_return` propagation, stub/`todo` conventions, `@Note`/`@Review` lifecycle — live in `docs/style_guide.md`.
-- `token.Token` is `{ offset: int, value: Value }`. Positions are **byte offsets**, never line/col.
+- `Token` is `{ offset: int, value: ValueToken }`. Positions are **byte offsets**, never line/col.
 - Newlines are explicit `NewLine` tokens; the parser decides if one ends a statement — `zoning_pre_parse` drops NewLines inside paren zones before the parser runs (§11.16).
-- `peek`/`advance` return `(u8, bool)` — `false` means EOF. Never use `0` as an EOF sentinel (NUL is a valid byte).
-- In the `lexer` package: `lex_identifier`/`lex_string`/`lex_number` return `(token.Token, bool)`; `lex` returns `(tokens, ok)` and stops on the first error.
+- The lexer's `lex_peek`/`lex_advance` return `(u8, bool)` — `false` means EOF. Never use `0` as an EOF sentinel (NUL is a valid byte).
+- `lex_identifier`/`lex_string`/`lex_number` return `(Token, bool)`; `lex` returns `(tokens, ok)` and stops on the first error.
 - Line comments (`//`) are skipped by the lexer; `Slash` is only emitted when the `/` isn't followed by another `/`.
 - String values are escape-aware (`\"`, `\\`) and are zero-copy slices of the source.
-- The `lexer` and `parser` packages both import `../token` for the shared token types; the lexer machinery stays in `lexer`. Everything else imports by package path.
+- The compiler is a single `compiler/` package — token types, lexer, parser, and codegen together; `main.odin` imports it by package path.
 
 ## Formatting (manual — there is no odinfmt)
 
