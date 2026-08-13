@@ -13,8 +13,9 @@ an implementation plan, and it lands ahead of its code the same way
 The term "semantic checking" is gingerBill's — the Odin compiler has a
 `checker/` package between `parser` and `codegen` that does exactly this
 work: name resolution, type inference, type checking, and constant
-evaluation. gauge mirrors that shape. The front end (lexer + parser)
-builds *structure*; the checker builds *meaning*.
+evaluation. gauge mirrors that shape as a pass inside the single
+`compiler/` package. The front end (lexer + parser) builds *structure*;
+the checker builds *meaning*.
 
 ## 1. What semantic checking is, and where it sits
 
@@ -241,7 +242,7 @@ distincts, or a distinct and its base) is rejected.
 **Decision.** Discriminated unions (DUs) are first-class. They are
 needed for real data modelling — option types, AST nodes, result
 variants, state machines — and the language already leans on the idea:
-the parser's own `Expr` and the token `Value` are Odin tagged unions,
+the parser's own `Expr` and the token `ValueToken` are Odin tagged unions,
 and §11.9 celebrates union-switch exhaustiveness as a feature. User
 code gets the same tool.
 
@@ -394,10 +395,10 @@ the parser's diagnostics slice will have.
 
 ## 9. Pass structure (implementation sketch)
 
-A `checker/` package, in the parser's image: explicit allocator
-threading (no defaults — §11.12), `(T, bool)` + `or_return` returns,
-byte-offset diagnostics, a `checker_test.odin` next to it. The three
-phases:
+A checker pass inside `compiler/`, in the parser's image: explicit
+allocator threading (no defaults — §11.12), `(T, bool)` + `or_return`
+returns, byte-offset diagnostics, a `checker_test.odin` beside the
+parser's. The three phases:
 
 1. **resolve** — build the scope tree from blocks, bind `Ident` → decl
    (two-phase for forward refs), detect cycles.
