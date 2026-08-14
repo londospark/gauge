@@ -33,7 +33,7 @@ jobs:
 
       - name: Test compiler
         if: always()
-        run: odin test compiler/ -define:ODIN_TEST_JSON_REPORT=compiler.json
+        run: odin test compiler/ -define:ODIN_TEST_JSON_REPORT=compiler.json -define:ODIN_TEST_FAIL_ON_BAD_MEMORY=true
 
       - name: Convert test reports to JUnit
         if: always()
@@ -103,7 +103,23 @@ jobs:
         run: odin build .
 
       - name: Test compiler
-        run: odin test compiler/
+        run: odin test compiler/ -define:ODIN_TEST_JSON_REPORT=compiler.json -define:ODIN_TEST_FAIL_ON_BAD_MEMORY=true
+
+      - name: Convert test reports to JUnit
+        if: always()
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path junit -Force | Out-Null
+          Get-ChildItem -Filter *.json | ForEach-Object {
+            python scripts/json_to_junit.py $_.Name > "junit\$($_.BaseName).xml"
+          }
+
+      - name: Publish test results
+        if: always()
+        uses: mikepenz/action-junit-report@v6.4.2
+        with:
+          report_paths: junit/*.xml
+          token: ${{ github.token }}
 
       - name: Demo end-to-end (gauge -> C -> cl -> run)
         run: .\gauge.exe -time demo.gauge

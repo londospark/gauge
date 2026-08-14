@@ -311,11 +311,16 @@ test_e2e_gauge_to_compiled_c :: proc(t: ^testing.T) {
 	if obj_path == "" do return
 
 	command: []string
+	fo_arg:  string
 	if cc.is_msvc {
-		command = {cc.name, "/nologo", "/c", c_path, fmt.aprintf("/Fo%s", obj_path, allocator = context.allocator)}
+		fo_arg = fmt.aprintf("/Fo%s", obj_path, allocator = context.allocator)
+		command = {cc.name, "/nologo", "/c", c_path, fo_arg}
 	} else {
 		command = {cc.name, "-c", c_path, "-o", obj_path}
 	}
+	// Declared outside the if so the defer outlives the command's use of
+	// it — an if-body defer would free the arg before process_exec ran.
+	defer if len(fo_arg) > 0 do delete(fo_arg, context.allocator)
 
 	state, stdout, stderr, err := os.process_exec(
 		{command = command},
@@ -373,11 +378,14 @@ test_e2e_gauge_to_running_binary :: proc(t: ^testing.T) {
 	}
 
 	command: []string
+	fe_arg:  string
 	if cc.is_msvc {
-		command = {cc.name, "/nologo", main_path, fmt.aprintf("/Fe%s", bin_path, allocator = context.allocator)}
+		fe_arg = fmt.aprintf("/Fe%s", bin_path, allocator = context.allocator)
+		command = {cc.name, "/nologo", main_path, fe_arg}
 	} else {
 		command = {cc.name, "-o", bin_path, main_path}
 	}
+	defer if len(fe_arg) > 0 do delete(fe_arg, context.allocator)
 
 	compile_state, compile_out, compile_err, err := os.process_exec(
 		{command = command},
