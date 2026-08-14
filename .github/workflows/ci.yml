@@ -68,7 +68,7 @@ jobs:
           "ODIN_ROOT=$odinDir" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Set up MSVC (cl judges the e2e tests)
-        uses: ilammy/msvc-dev-cmd@v1
+        uses: ilammy/msvc-dev-cmd@v1.13.0
 
       - name: Check Odin
         run: odin version
