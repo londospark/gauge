@@ -1,18 +1,29 @@
 package main
 
+import "core:flags"
 import "core:fmt"
 import "core:os"
 import "core:strings"
 import "compiler"
 
-SimpleProgram :: `
-Print :: GiB
-KiB   :: 1024
-MiB   :: KiB * 1024
-GiB   :: MiB * 1024`
+CommandLineArgs :: struct {
+	file: string,
+}
 
 main :: proc() {
-	lexer_state := compiler.make_lexer(SimpleProgram)
+
+	args: CommandLineArgs
+	flags.parse_or_exit(&args, os.args)
+	fmt.println("File: ", args.file)
+
+	contents, read_err := os.read_entire_file(args.file, context.temp_allocator)
+
+	if read_err != nil {
+		fmt.eprintln("Error: ", read_err)
+		return
+	}
+
+	lexer_state := compiler.make_lexer(string(contents))
 	tokens, ok := compiler.lex(&lexer_state, context.temp_allocator)
 
 	if !ok {

@@ -51,7 +51,9 @@ The toolchain (Odin master, gdb, gf2, gcc) is declared in the **devenv flake** (
 
 1. Install [Nix](https://nixos.org/download) (flakes enabled).
 2. Enter the environment: `devenv shell` (first run compiles Odin from master — grab a coffee).
-3. Run it: `devenv shell --quiet odin run .` · test: `devenv shell --quiet odin test compiler/`.
+3. Run the demo: `devenv shell --quiet odin run . -- -file:demo.gauge` — the `--` hands the flag to gauge rather than odin (`-file` is also an odin flag). · test: `devenv shell --quiet odin test compiler/`.
+
+The demo reads the named `.gauge` file, compiles it to C, runs `cc`, and executes the binary — printing `result = <the value of Print>` from the file's consts.
 
 (`nix develop --no-pure-eval` enters the same environment.)
 

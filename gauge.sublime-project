@@ -20,7 +20,7 @@
 		{
 			"name": "Odin: Run",
 			"working_dir": "${project_path}",
-			"cmd": ["devenv", "shell", "--quiet", "odin", "run", "."],
+			"cmd": ["devenv", "shell", "--quiet", "odin", "run", ".", "--", "-file:demo.gauge"],
 			"file_regex": "^(...*?)\\(([0-9]+):([0-9]+)\\) (?:Error|Warning|Note): (.*)$",
 		},
 		{
