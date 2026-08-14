@@ -7,14 +7,13 @@ import "core:strings"
 import "compiler"
 
 CommandLineArgs :: struct {
-	file: string,
+	file: string `args:"pos=0,required" usage:"Input file."`,
 }
 
 main :: proc() {
 
 	args: CommandLineArgs
 	flags.parse_or_exit(&args, os.args)
-	fmt.println("File: ", args.file)
 
 	contents, read_err := os.read_entire_file(args.file, context.temp_allocator)
 
@@ -46,24 +45,24 @@ main :: proc() {
 
 	c := strings.to_string(c_sb)
 
-	// Write the generated C.
-	_ = os.write_entire_file("gauge_program.c", c)  // returns an Error; check it
-	
-	// Compile: run + wait + capture, all in one call. The command is a
-	// []string — no shell involved, no quoting to escape.
+	_ = os.write_entire_file("gauge_program.c", c)
+
 	state, _, stderr, err := os.process_exec(
 	    {command = {"cc", "-o", "gauge_program", "gauge_program.c"}},
 	    context.allocator,
 	)
-	defer delete(stderr)                          // the captured slices are yours to free
-	if err != nil { /* cc failed to start */ }
-	if state.exit_code != 0 { /* cc rejected the C — stderr has the diagnostics */ }
+	defer delete(stderr)
+	if err != nil {
+		fmt.eprintln("cc failed to start: ", err)
+	}
+	if state.exit_code != 0 { 
+		fmt.eprintln(string(stderr))
+	}
 	
-	// Run it.
 	_, stdout, _, _ := os.process_exec(
 	    {command = {"./gauge_program"}},
 	    context.allocator,
 	)
 	defer delete(stdout)
-	fmt.print(string(stdout))                     // the program's output
+	fmt.print(string(stdout))
 }
