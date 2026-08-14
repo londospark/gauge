@@ -63,10 +63,13 @@ decisions live in §11.
   compile and run (§11.20). Provisional value domain: dotless → `int`,
   dotted → `double`, verbatim emission. Consts emit in dependency order
   (forward refs are legal, C demands declaration-before-use; consts are
-  pure, so reordering is sound). Strings emit as the §11.17 pointer +
-  length pair, never C strings. The demo writes C, `cc` builds, the
-  binary runs — the feel loop. Later slices grow the backend into
-  blocks, procs, calls, and assignment.
+  pure, so reordering is sound). The ordering is a work-list over
+  `is_ready` — O(N²)-ish and fine at source-file scale; when it bites,
+  the upgrade is the emitted-membership map (`map[IdentifierToken]bool`
+  for O(1) readiness) and Kahn's/DFS with cycle-path diagnostics. Strings
+  emit as the §11.17 pointer + length pair, never C strings. The demo
+  writes C, `cc` builds, the binary runs — the feel loop. Later slices
+  grow the backend into blocks, procs, calls, and assignment.
 - **Blocks and procedures** — `{ ... }` blocks and the `proc` dispatch
   (`name :: proc() { }`). The `proc` keyword, the `Block`/`Proc` AST
   shapes, and the two disabled proc tests already exist; `parse_block` and
