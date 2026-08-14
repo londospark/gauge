@@ -68,7 +68,33 @@ jobs:
           "ODIN_ROOT=$odinDir" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Set up MSVC (cl judges the e2e tests)
-        uses: ilammy/msvc-dev-cmd@v1.13.0
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vsPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (-not $vsPath) { throw "Visual Studio with the C++ toolset not found" }
+          $vcvars = Join-Path $vsPath 'VC\Auxiliary\Build\vcvarsall.bat'
+          if (-not (Test-Path $vcvars)) { throw "vcvarsall.bat not found at $vcvars" }
+
+          # vcvarsall mutates the process environment; capture the result
+          # and replay it into GITHUB_ENV/GITHUB_PATH so every later step
+          # sees cl, INCLUDE, LIB and the rest. PATH goes through
+          # GITHUB_PATH, which prepends, keeping the merged value's
+          # priority intact.
+          $envLines = cmd /c "call `"$vcvars`" x64 >nul 2>&1 && set"
+          if ($LASTEXITCODE -ne 0) { throw "vcvarsall.bat exited $LASTEXITCODE" }
+
+          foreach ($line in $envLines) {
+            $i = $line.IndexOf('=')
+            if ($i -le 0) { continue }
+            $key = $line.Substring(0, $i)
+            $value = $line.Substring($i + 1)
+            if ($key -ieq 'PATH') {
+              Add-Content -Path $env:GITHUB_PATH -Value $value
+            } else {
+              Add-Content -Path $env:GITHUB_ENV -Value "$key=$value"
+            }
+          }
 
       - name: Check Odin
         run: odin version
