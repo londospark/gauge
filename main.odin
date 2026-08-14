@@ -62,19 +62,21 @@ main :: proc() {
 	_ = os.write_entire_file("gauge_program.c", c)
 	stage_time("write C", t_stage, args.time)
 
-	// Pick the C compiler for this platform. Windows prefers MSVC's `cl`
-	// when the shell is set up for it (a Developer Prompt, or vcvarsall run
-	// by hand); it falls back to `cc` so a mingw or clang `cc` keeps
-	// working. The rest of the world stays on `cc`. The run step needs the
-	// .exe suffix on Windows — without it the loader cannot find the binary
-	// the compiler just wrote.
+	// Pick the C compiler for this platform. Windows walks a chain: MSVC's
+	// `cl` when the shell is set up for it (a Developer Prompt, or vcvarsall
+	// run by hand), then `cc` (mingw or clang), then bare `gcc` — whatever
+	// the PATH actually holds. The rest of the world stays on `cc`. The run
+	// step needs the .exe suffix on Windows — without it the loader cannot
+	// find the binary the compiler just wrote.
 	compile_command: []string
 	run_command:    []string
 	when ODIN_OS == .Windows {
-		if cl_on_path(context.temp_allocator) {
+		if on_path("cl", context.temp_allocator) {
 			compile_command = {"cl", "/nologo", "gauge_program.c"}
-		} else {
+		} else if on_path("cc", context.temp_allocator) {
 			compile_command = {"cc", "-o", "gauge_program.exe", "gauge_program.c"}
+		} else {
+			compile_command = {"gcc", "-o", "gauge_program.exe", "gauge_program.c"}
 		}
 		run_command = {"gauge_program.exe"}
 	} else {
@@ -111,11 +113,16 @@ main :: proc() {
 	stage_time("total", t_total, args.time)
 }
 
-// cl_on_path reports whether MSVC's `cl.exe` resolves through PATH — i.e.
-// the shell was prepared by a Developer Prompt or by running vcvarsall.
-// Only the Windows build consults it; a bare-shell Windows user gets the
-// `cc` fallback instead.
-cl_on_path :: proc(allocator: mem.Allocator) -> bool {
+// on_path reports whether the named program resolves through PATH — the
+// shell was prepared for it, whether by a Developer Prompt (cl), a mingw
+// install (gcc), or anything else. Only the Windows build consults it,
+// so the .exe suffix and ; separator are the Windows ones. A bare-shell
+// Windows user falls through the cl -> cc -> gcc chain to whichever of
+// them actually exists.
+on_path :: proc(program_name: string, allocator: mem.Allocator) -> bool {
+	exe_name := strings.concatenate({program_name, ".exe"}, allocator)
+	defer delete(exe_name, allocator)
+
 	path_env := os.get_env("PATH", allocator)
 	defer delete(path_env, allocator)
 	if len(path_env) == 0 do return false
@@ -126,7 +133,7 @@ cl_on_path :: proc(allocator: mem.Allocator) -> bool {
 	scan := path_env
 	found := false
 	for dir in strings.split_iterator(&scan, ";") {
-		candidate := os.join_path({dir, "cl.exe"}, allocator) or_continue
+		candidate := os.join_path({dir, exe_name}, allocator) or_continue
 		defer delete(candidate, allocator)
 		if os.is_file(candidate) {
 			found = true
