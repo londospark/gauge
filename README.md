@@ -47,6 +47,8 @@ flowchart TD
 
 The toolchain (Odin master, gdb, gf2, gcc) is declared in the **devenv flake** (`devenv.nix`/`devenv.yaml`). Use Nix + devenv where possible, or a plain Odin install — the tests work either way; the demo needs a C compiler for its final `cc` step.
 
+No Odin at all? CI builds gauge on Linux (amd64 + arm64), macOS (arm64) and Windows and uploads each binary as a workflow artifact — download one from the **Actions** tab and run it anywhere the OS matches. The demo still needs a C compiler at runtime for its final step, but gauge itself is self-contained.
+
 ### Linux — Nix + devenv (recommended)
 
 1. Install [Nix](https://nixos.org/download) (flakes enabled).

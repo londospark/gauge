@@ -10,15 +10,28 @@ permissions:
   pull-requests: write
 
 jobs:
-  build-and-test:
-    runs-on: ubuntu-latest
+  unix-build-and-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            asset: linux-amd64
+            artifact: gauge-linux-amd64
+          - runner: ubuntu-24.04-arm
+            asset: linux-arm64
+            artifact: gauge-linux-arm64
+          - runner: macos-14
+            asset: macos-arm64
+            artifact: gauge-darwin-arm64
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v7
 
       - name: Install Odin (latest prebuilt nightly)
         run: |
           asset=$(curl -fsSL https://api.github.com/repos/odin-lang/Odin/releases/latest \
-            | jq -r '.assets[] | select(.name | contains("linux-amd64")) | .browser_download_url')
+            | jq -r '.assets[] | select(.name | contains("${{ matrix.asset }}")) | .browser_download_url')
           curl -fsSL -o odin.tar.gz "$asset"
           tar -xzf odin.tar.gz
           mv odin-*/ odin
@@ -30,6 +43,12 @@ jobs:
 
       - name: Build
         run: odin build .
+
+      - name: Upload gauge binary
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: ${{ matrix.artifact }}
+          path: gauge
 
       - name: Test compiler
         if: always()
@@ -101,6 +120,12 @@ jobs:
 
       - name: Build
         run: odin build .
+
+      - name: Upload gauge binary
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: gauge-windows-amd64
+          path: gauge.exe
 
       - name: Test compiler
         run: odin test compiler/ -define:ODIN_TEST_JSON_REPORT=compiler.json -define:ODIN_TEST_FAIL_ON_BAD_MEMORY=true
