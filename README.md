@@ -4,7 +4,7 @@ A small programming language inspired by **Jai** and **Odin**, written in Odin i
 
 [![CI](https://github.com/londospark/gauge/actions/workflows/ci.yml/badge.svg)](https://github.com/londospark/gauge/actions/workflows/ci.yml)
 
-> **Status:** lexer and parser green — consts, types, expressions. Blocks and procedures next (see [TODO.md](TODO.md)).
+> **Status:** the front end is green, and consts compile to C and run — the demo goes from gauge source to a running binary. Blocks and procedures next (see [TODO.md](TODO.md)).
 
 ## Design
 
@@ -17,6 +17,8 @@ A consistent syntax that just does what people want it to do — see [docs/desig
 - **Newlines are explicit tokens**, so the parser decides whether one ends a statement.
 - Token values are **zero-copy slices** of the source; strings are escape-aware (`\"`, `\\`).
 - **Table-driven test suites** (`compiler/lexer_test.odin`, `compiler/parser_test.odin`, ...) run with one command — `devenv shell --quiet odin test compiler/`; the whole compiler is a single package, so one invocation runs everything.
+- A **C backend** that turns consts into real C — emitted in dependency order (forward refs are legal in gauge but not in C; consts are pure, so reordering is sound), with the provisional int/double split and pointer+length strings to come (§11.17, §11.20). `cc` is the runtime: the generated C is compiled and run, not interpreted.
+- The **demo** goes all the way: gauge source → C → `cc` → a binary that runs and prints. Requires a C compiler — the flake carries `gcc`; plain-Odin setups need one installed. The generated `gauge_program.c` and binary are gitignored.
 
 ## The lexer at a glance
 
@@ -43,7 +45,7 @@ flowchart TD
 
 ## Setup
 
-The toolchain (Odin master, gdb, gf2) is declared in the **devenv flake** (`devenv.nix`/`devenv.yaml`). Use Nix + devenv where possible, or a plain Odin install — the tests and demo work either way.
+The toolchain (Odin master, gdb, gf2, gcc) is declared in the **devenv flake** (`devenv.nix`/`devenv.yaml`). Use Nix + devenv where possible, or a plain Odin install — the tests work either way; the demo needs a C compiler for its final `cc` step.
 
 ### Linux — Nix + devenv (recommended)
 

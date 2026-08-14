@@ -3,7 +3,7 @@ let
   odin = inputs.odin.packages.${pkgs.stdenv.hostPlatform.system}.odin;
 in
 {
-  packages = [ pkgs.gf ];
+  packages = [ pkgs.gcc pkgs.gf ];
 
   languages.odin = {
     enable = true;

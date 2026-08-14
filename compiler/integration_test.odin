@@ -9,6 +9,7 @@ package compiler
 
 import "core:testing"
 import "core:mem"
+import "core:os"
 
 // lex_and_parse runs a source string through the whole front end.
 // failed_stage names where it broke ("lex" or "parse") so a test can pin
@@ -199,4 +200,100 @@ test_e2e_unterminated_string :: proc(t: ^testing.T) {
 	_, ok, stage := lex_and_parse(t, src)
 	testing.expectf(t, !ok, "want a lex error for an unterminated string")
 	testing.expectf(t, stage == "lex", "want the failure in the lexer, got %s", stage)
+}
+
+// --- Full pipeline e2e: gauge source to a compiled binary -------------
+//
+// The feel-loop as tests: source → lex → parse → generate → cc → run.
+// `cc` is the judge (§11.20): these prove the emitted C is *valid*, not
+// just the right text. Requires cc in the environment (the flake carries
+// gcc); the scratch files live in /tmp and collide with nothing.
+
+lex_parse_generate :: proc(t: ^testing.T, src: string) -> string {
+	program, ok, stage := lex_and_parse(t, src)
+	testing.expectf(t, ok, "expected a successful parse, failed in %s", stage)
+	if !ok {
+		return ""
+	}
+	return generate(program, new_test_arena(t))
+}
+
+@(test)
+test_e2e_gauge_to_compiled_c :: proc(t: ^testing.T) {
+	// The walker's output must be valid C, not just the right text:
+	// cc -c is the judge. Forward refs, composites, and a double all
+	// in one program — the dependency order and the int/double split
+	// must survive the compiler.
+	src := "x :: 5\ny :: x + 1\nz :: y * 2\nw :: x + z\nd :: 2.5\n"
+	c := lex_parse_generate(t, src)
+
+	c_path := "/tmp/gauge_e2e_compile.c"
+	if err := os.write_entire_file(c_path, c); err != nil {
+		testing.expectf(t, false, "writing %s failed: %v", c_path, err)
+		return
+	}
+
+	state, stdout, stderr, err := os.process_exec(
+		{command = {"cc", "-c", c_path, "-o", "/tmp/gauge_e2e_compile.o"}},
+		context.allocator,
+	)
+	defer delete(stdout)
+	defer delete(stderr)
+
+	if err != nil {
+		testing.expectf(t, false, "cc failed to start: %v (%s)", err, stderr)
+		return
+	}
+	testing.expectf(t, state.exit_code == 0, "cc rejected the generated C with exit %d:\n%s", state.exit_code, stderr)
+}
+
+@(test)
+test_e2e_gauge_to_running_binary :: proc(t: ^testing.T) {
+	// The full journey: gauge source → C → cc → a binary that runs and
+	// prints. This is the demo's route, and the values it prints are
+	// the consts' real semantics flowing through the whole pipeline.
+	src := "KiB :: 1024\nMiB :: KiB * 1024\nGiB :: MiB * 1024\n"
+	gen_c := lex_parse_generate(t, src)
+
+	gen_path := "/tmp/gauge_e2e_gen.c"
+	main_path := "/tmp/gauge_e2e_main.c"
+	bin_path := "/tmp/gauge_e2e_prog"
+
+	if err := os.write_entire_file(gen_path, gen_c); err != nil {
+		testing.expectf(t, false, "writing %s failed: %v", gen_path, err)
+		return
+	}
+	main_c := "#include \"/tmp/gauge_e2e_gen.c\"\n#include <stdio.h>\nint main(void) {\n\tprintf(\"%d\\n\", KiB);\n\tprintf(\"%d\\n\", MiB);\n\tprintf(\"%d\\n\", GiB);\n\treturn 0;\n}\n"
+	if err := os.write_entire_file(main_path, main_c); err != nil {
+		testing.expectf(t, false, "writing %s failed: %v", main_path, err)
+		return
+	}
+
+	state, stdout, stderr, err := os.process_exec(
+		{command = {"cc", "-o", bin_path, main_path}},
+		context.allocator,
+	)
+	defer delete(stdout)
+	defer delete(stderr)
+
+	if err != nil {
+		testing.expectf(t, false, "cc failed to start: %v (%s)", err, stderr)
+		return
+	}
+	testing.expectf(t, state.exit_code == 0, "cc rejected the generated C with exit %d:\n%s", state.exit_code, stderr)
+
+	state, stdout, stderr, err = os.process_exec(
+		{command = {bin_path}},
+		context.allocator,
+	)
+	defer delete(stdout)
+	defer delete(stderr)
+
+	if err != nil {
+		testing.expectf(t, false, "running the binary failed: %v (%s)", err, stderr)
+		return
+	}
+	testing.expectf(t, state.exit_code == 0, "the binary exited %d: %s", state.exit_code, stderr)
+	testing.expectf(t, string(stdout) == "1024\n1048576\n1073741824\n",
+		"want the KiB chain values, got %q", string(stdout))
 }

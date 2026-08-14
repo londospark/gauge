@@ -5,3 +5,9 @@ result
 /gauge
 *.o
 *.bin
+
+# generated C and compiled binaries from the demo
+demo.c
+demo
+gauge_program.c
+gauge_program

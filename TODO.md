@@ -58,18 +58,6 @@ decisions live in §11.
 
 ## Next up
 
-- **C codegen (first slice: consts + expressions)** — the first backend
-  emits C from the AST, no IR; `cc` is the runtime, so gauge programs
-  compile and run (§11.20). Provisional value domain: dotless → `int`,
-  dotted → `double`, verbatim emission. Consts emit in dependency order
-  (forward refs are legal, C demands declaration-before-use; consts are
-  pure, so reordering is sound). The ordering is a work-list over
-  `is_ready` — O(N²)-ish and fine at source-file scale; when it bites,
-  the upgrade is the emitted-membership map (`map[IdentifierToken]bool`
-  for O(1) readiness) and Kahn's/DFS with cycle-path diagnostics. Strings
-  emit as the §11.17 pointer + length pair, never C strings. The demo
-  writes C, `cc` builds, the binary runs — the feel loop. Later slices
-  grow the backend into blocks, procs, calls, and assignment.
 - **Blocks and procedures** — `{ ... }` blocks and the `proc` dispatch
   (`name :: proc() { }`). The `proc` keyword, the `Block`/`Proc` AST
   shapes, and the two disabled proc tests already exist; `parse_block` and
@@ -148,3 +136,16 @@ multi-line decision lands with the paren-zone pre-pass in this commit.*
   The OCaml-ward future path (trailing-operator continuation only, a
   meaning-preserving relaxation) and the lesson are recorded in §11.16, and
   the end-to-end tests pin the pipeline.
+- **C codegen (first slice: consts + expressions)** — the first backend
+  emits C from the AST, no IR; `cc` is the runtime. The walker covers
+  Number (int/double split by the trailing dot), Identifier references,
+  Unary and Binary with bracket-everything (the `--` hazard), and consts
+  emit in dependency order via a work-list over `is_ready` — cycles and
+  undefined references fall out of the same stall→fallback mechanism, and
+  cc reports them (§11.20). The demo goes gauge source → C → `cc` → a
+  running binary (prints `result = 1073741824`), proven by two e2e tests
+  (`cc -c` accepts the output; the KiB chain compiles and runs). Refinements
+  for when the scale bites: an emitted-membership map
+  (`map[IdentifierToken]bool`) and Kahn's/DFS with cycle-path diagnostics.
+  Strings emit as the §11.17 pointer + length pair later; the backend grows
+  with the blocks, procs, calls, and assignment slices.
