@@ -7,9 +7,11 @@ package compiler
 // two stages see differently, or where a naive implementation would
 // silently break the §11.16 contract.
 
-import "core:testing"
+import "core:fmt"
 import "core:mem"
 import "core:os"
+import "core:strings"
+import "core:testing"
 
 // lex_and_parse runs a source string through the whole front end.
 // failed_stage names where it broke ("lex" or "parse") so a test can pin
@@ -204,10 +206,72 @@ test_e2e_unterminated_string :: proc(t: ^testing.T) {
 
 // --- Full pipeline e2e: gauge source to a compiled binary -------------
 //
-// The feel-loop as tests: source → lex → parse → generate → cc → run.
-// `cc` is the judge (§11.20): these prove the emitted C is *valid*, not
-// just the right text. Requires cc in the environment (the flake carries
-// gcc); the scratch files live in /tmp and collide with nothing.
+// The feel-loop as tests: source → lex → parse → generate → C compiler →
+// run. The C compiler is the judge (§11.20): these prove the emitted C is
+// *valid*, not just the right text. The judge is whichever of cl/cc/gcc
+// is on PATH — cl first on Windows, where the MSVC C-mode rules live (the
+// C2099 fold exists for it); cc is the unix default; gcc covers mingw
+// setups. Scratch files live in the OS temp directory.
+
+C_Compiler :: struct {
+	name:    string,
+	is_msvc: bool,
+}
+
+// find_c_compiler locates the C compiler that judges the e2e tests.
+// cl is preferred on Windows — the CI job's MSVC environment exists to
+// prove the codegen's C-mode compatibility; cc and gcc are the fallbacks
+// for bare shells and mingw setups. Elsewhere cc is the unix default.
+find_c_compiler :: proc(allocator: mem.Allocator) -> (cc: C_Compiler, ok: bool) {
+	path_env := os.get_env("PATH", allocator)
+	defer delete(path_env, allocator)
+	if len(path_env) == 0 do return {}, false
+
+	exe_suffix := ".exe" when ODIN_OS == .Windows else ""
+	separator  := ";"     when ODIN_OS == .Windows else ":"
+
+	candidates: []string
+	when ODIN_OS == .Windows {
+		candidates = {"cl", "cc", "gcc"}
+	} else {
+		candidates = {"cc", "gcc"}
+	}
+
+	for candidate in candidates {
+		exe_name := strings.concatenate({candidate, exe_suffix}, allocator)
+		defer delete(exe_name, allocator)
+		// split_iterator consumes its input, so every candidate scans a
+		// fresh copy of the PATH header — otherwise the first candidate
+		// exhausts the string and the rest find nothing.
+		scan := path_env
+		for dir in strings.split_iterator(&scan, separator) {
+			full := os.join_path({dir, exe_name}, allocator) or_continue
+			defer delete(full, allocator)
+			if os.is_file(full) {
+				return C_Compiler{name = candidate, is_msvc = candidate == "cl"}, true
+			}
+		}
+	}
+
+	return {}, false
+}
+
+// scratch_path joins a name onto the OS temp directory, so the e2e tests
+// write nowhere near the repo and collide with nothing.
+scratch_path :: proc(t: ^testing.T, name: string) -> string {
+	scratch, err := os.temp_directory(context.allocator)
+	if err != nil {
+		testing.expectf(t, false, "temp directory unavailable: %v", err)
+		return ""
+	}
+	defer delete(scratch, context.allocator)
+
+	path := os.join_path({scratch, name}, context.allocator) or_else ""
+	if path == "" {
+		testing.expectf(t, false, "building the scratch path for %q failed", name)
+	}
+	return path
+}
 
 lex_parse_generate :: proc(t: ^testing.T, src: string) -> string {
 	program, ok, stage := lex_and_parse(t, src)
@@ -220,80 +284,132 @@ lex_parse_generate :: proc(t: ^testing.T, src: string) -> string {
 
 @(test)
 test_e2e_gauge_to_compiled_c :: proc(t: ^testing.T) {
-	// The walker's output must be valid C, not just the right text:
-	// cc -c is the judge. Forward refs, composites, and a double all
-	// in one program — the dependency order and the int/double split
-	// must survive the compiler.
+	// The walker's output must be valid C, not just the right text: the
+	// C compiler is the judge. Forward refs, composites, and a double
+	// all in one program — the dependency order and the int/double
+	// split must survive the compiler.
 	src := "x :: 5\ny :: x + 1\nz :: y * 2\nw :: x + z\nd :: 2.5\n"
 	c := lex_parse_generate(t, src)
 
-	c_path := "/tmp/gauge_e2e_compile.c"
+	cc, cc_ok := find_c_compiler(context.allocator)
+	if !cc_ok {
+		testing.expectf(t, false, "no C compiler on PATH (cl, cc or gcc) — the e2e tests need one")
+		return
+	}
+
+	c_path := scratch_path(t, "gauge_e2e_compile.c")
+	defer delete(c_path, context.allocator)
+	if c_path == "" do return
+
 	if err := os.write_entire_file(c_path, c); err != nil {
 		testing.expectf(t, false, "writing %s failed: %v", c_path, err)
 		return
 	}
 
+	obj_path := scratch_path(t, "gauge_e2e_compile.o")
+	defer delete(obj_path, context.allocator)
+	if obj_path == "" do return
+
+	command: []string
+	if cc.is_msvc {
+		command = {cc.name, "/nologo", "/c", c_path, fmt.aprintf("/Fo%s", obj_path, allocator = context.allocator)}
+	} else {
+		command = {cc.name, "-c", c_path, "-o", obj_path}
+	}
+
 	state, stdout, stderr, err := os.process_exec(
-		{command = {"cc", "-c", c_path, "-o", "/tmp/gauge_e2e_compile.o"}},
+		{command = command},
 		context.allocator,
 	)
 	defer delete(stdout)
 	defer delete(stderr)
 
 	if err != nil {
-		testing.expectf(t, false, "cc failed to start: %v (%s)", err, stderr)
+		testing.expectf(t, false, "%s failed to start: %v (%s)", cc.name, err, stderr)
 		return
 	}
-	testing.expectf(t, state.exit_code == 0, "cc rejected the generated C with exit %d:\n%s", state.exit_code, stderr)
+	testing.expectf(t, state.exit_code == 0, "%s rejected the generated C with exit %d:\n%s", cc.name, state.exit_code, stderr)
 }
 
 @(test)
 test_e2e_gauge_to_running_binary :: proc(t: ^testing.T) {
-	// The full journey: gauge source → C → cc → a binary that runs and
-	// prints. This is the demo's route, and the values it prints are
-	// the consts' real semantics flowing through the whole pipeline.
+	// The full journey: gauge source → C → C compiler → a binary that
+	// runs and prints. This is the demo's route, and the values it
+	// prints are the consts' real semantics flowing through the whole
+	// pipeline.
 	src := "KiB :: 1024\nMiB :: KiB * 1024\nGiB :: MiB * 1024\n"
 	gen_c := lex_parse_generate(t, src)
 
-	gen_path := "/tmp/gauge_e2e_gen.c"
-	main_path := "/tmp/gauge_e2e_main.c"
-	bin_path := "/tmp/gauge_e2e_prog"
+	cc, cc_ok := find_c_compiler(context.allocator)
+	if !cc_ok {
+		testing.expectf(t, false, "no C compiler on PATH (cl, cc or gcc) — the e2e tests need one")
+		return
+	}
+
+	gen_path := scratch_path(t, "gauge_e2e_gen.c")
+	defer delete(gen_path, context.allocator)
+	if gen_path == "" do return
+
+	main_path := scratch_path(t, "gauge_e2e_main.c")
+	defer delete(main_path, context.allocator)
+	if main_path == "" do return
+
+	bin_path := scratch_path(t, "gauge_e2e_prog")
+	defer delete(bin_path, context.allocator)
+	if bin_path == "" do return
 
 	if err := os.write_entire_file(gen_path, gen_c); err != nil {
 		testing.expectf(t, false, "writing %s failed: %v", gen_path, err)
 		return
 	}
-	main_c := "#include \"/tmp/gauge_e2e_gen.c\"\n#include <stdio.h>\nint main(void) {\n\tprintf(\"%d\\n\", KiB);\n\tprintf(\"%d\\n\", MiB);\n\tprintf(\"%d\\n\", GiB);\n\treturn 0;\n}\n"
+	// The generated consts are included, then printed. The include is
+	// relative because the compiler searches the including file's own
+	// directory first — both files live in the scratch dir, and no
+	// platform-specific path text ever reaches the C source.
+	main_c := "#include \"gauge_e2e_gen.c\"\n#include <stdio.h>\nint main(void) {\n\tprintf(\"%d\\n\", KiB);\n\tprintf(\"%d\\n\", MiB);\n\tprintf(\"%d\\n\", GiB);\n\treturn 0;\n}\n"
 	if err := os.write_entire_file(main_path, main_c); err != nil {
 		testing.expectf(t, false, "writing %s failed: %v", main_path, err)
 		return
 	}
 
-	state, stdout, stderr, err := os.process_exec(
-		{command = {"cc", "-o", bin_path, main_path}},
+	command: []string
+	if cc.is_msvc {
+		command = {cc.name, "/nologo", main_path, fmt.aprintf("/Fe%s", bin_path, allocator = context.allocator)}
+	} else {
+		command = {cc.name, "-o", bin_path, main_path}
+	}
+
+	compile_state, compile_out, compile_err, err := os.process_exec(
+		{command = command},
 		context.allocator,
 	)
-	defer delete(stdout)
-	defer delete(stderr)
+	defer delete(compile_out)
+	defer delete(compile_err)
 
 	if err != nil {
-		testing.expectf(t, false, "cc failed to start: %v (%s)", err, stderr)
+		testing.expectf(t, false, "%s failed to start: %v (%s)", cc.name, err, compile_err)
 		return
 	}
-	testing.expectf(t, state.exit_code == 0, "cc rejected the generated C with exit %d:\n%s", state.exit_code, stderr)
+	testing.expectf(t, compile_state.exit_code == 0, "%s rejected the generated C with exit %d:\n%s", cc.name, compile_state.exit_code, compile_err)
 
-	state, stdout, stderr, err = os.process_exec(
+	state, stdout, stderr, run_err := os.process_exec(
 		{command = {bin_path}},
 		context.allocator,
 	)
 	defer delete(stdout)
 	defer delete(stderr)
 
-	if err != nil {
-		testing.expectf(t, false, "running the binary failed: %v (%s)", err, stderr)
+	if run_err != nil {
+		testing.expectf(t, false, "running the binary failed: %v (%s)", run_err, stderr)
 		return
 	}
 	testing.expectf(t, state.exit_code == 0, "the binary exited %d: %s", state.exit_code, stderr)
-	testing.expectf(t, string(stdout) == "1024\n1048576\n1073741824\n",
-		"want the KiB chain values, got %q", string(stdout))
+	// The values are the point; the line endings are the C runtime's —
+	// Windows printf writes CRLF in text mode, everywhere else LF.
+	// Accept both rather than pin the platform's convention.
+	got := string(stdout)
+	testing.expectf(t,
+		got == "1024\n1048576\n1073741824\n" ||
+		got == "1024\r\n1048576\r\n1073741824\r\n",
+		"want the KiB chain values, got %q", got)
 }

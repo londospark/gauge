@@ -2,12 +2,15 @@ package main
 
 import "core:flags"
 import "core:fmt"
+import "core:mem"
 import "core:os"
 import "core:strings"
+import "core:time"
 import "compiler"
 
 CommandLineArgs :: struct {
 	file: string `args:"pos=0,required" usage:"Input file."`,
+	time: bool    `usage:"Time each stage of the pipeline."`,
 }
 
 main :: proc() {
@@ -15,13 +18,17 @@ main :: proc() {
 	args: CommandLineArgs
 	flags.parse_or_exit(&args, os.args)
 
+	t_total := time.now()
+
 	contents, read_err := os.read_entire_file(args.file, context.temp_allocator)
 
 	if read_err != nil {
 		fmt.eprintln("Error: ", read_err)
 		return
 	}
+	stage_time("read", t_total, args.time)
 
+	t_stage := time.now()
 	lexer_state := compiler.make_lexer(string(contents))
 	tokens, ok := compiler.lex(&lexer_state, context.temp_allocator)
 
@@ -29,10 +36,17 @@ main :: proc() {
 		fmt.eprintln(lexer_state.err)
 		return
 	}
+	stage_time("lex", t_stage, args.time)
 
+	t_stage = time.now()
 	program, _, _ := compiler.parse(tokens[:], context.temp_allocator)
-	c_code := compiler.generate(program, context.temp_allocator)
+	stage_time("parse", t_stage, args.time)
 
+	t_stage = time.now()
+	c_code := compiler.generate(program, context.temp_allocator)
+	stage_time("codegen", t_stage, args.time)
+
+	t_stage = time.now()
 	c_sb := strings.builder_make()
 	fmt.sbprintln(&c_sb, "#include <stdio.h>")
 	fmt.sbprintln(&c_sb, "")
@@ -46,23 +60,89 @@ main :: proc() {
 	c := strings.to_string(c_sb)
 
 	_ = os.write_entire_file("gauge_program.c", c)
+	stage_time("write C", t_stage, args.time)
 
-	state, _, stderr, err := os.process_exec(
-	    {command = {"cc", "-o", "gauge_program", "gauge_program.c"}},
-	    context.allocator,
+	// Pick the C compiler for this platform. Windows prefers MSVC's `cl`
+	// when the shell is set up for it (a Developer Prompt, or vcvarsall run
+	// by hand); it falls back to `cc` so a mingw or clang `cc` keeps
+	// working. The rest of the world stays on `cc`. The run step needs the
+	// .exe suffix on Windows — without it the loader cannot find the binary
+	// the compiler just wrote.
+	compile_command: []string
+	run_command:    []string
+	when ODIN_OS == .Windows {
+		if cl_on_path(context.temp_allocator) {
+			compile_command = {"cl", "/nologo", "gauge_program.c"}
+		} else {
+			compile_command = {"cc", "-o", "gauge_program.exe", "gauge_program.c"}
+		}
+		run_command = {"gauge_program.exe"}
+	} else {
+		compile_command = {"cc", "-o", "gauge_program", "gauge_program.c"}
+		run_command = {"./gauge_program"}
+	}
+
+	t_stage = time.now()
+	compile_state, _, stderr, err := os.process_exec(
+		{command = compile_command},
+		context.allocator,
 	)
 	defer delete(stderr)
 	if err != nil {
-		fmt.eprintln("cc failed to start: ", err)
+		fmt.eprintln("C compiler failed to start: ", err)
 	}
-	if state.exit_code != 0 { 
+	if compile_state.exit_code != 0 {
 		fmt.eprintln(string(stderr))
 	}
-	
-	_, stdout, _, _ := os.process_exec(
-	    {command = {"./gauge_program"}},
-	    context.allocator,
+	stage_time("compile", t_stage, args.time)
+
+	t_stage = time.now()
+	_, stdout, _, run_err := os.process_exec(
+		{command = run_command},
+		context.allocator,
 	)
 	defer delete(stdout)
+	if run_err != nil {
+		fmt.eprintln("Failed to run the compiled program: ", run_err)
+	}
+	stage_time("run", t_stage, args.time)
+
 	fmt.print(string(stdout))
+	stage_time("total", t_total, args.time)
+}
+
+// cl_on_path reports whether MSVC's `cl.exe` resolves through PATH — i.e.
+// the shell was prepared by a Developer Prompt or by running vcvarsall.
+// Only the Windows build consults it; a bare-shell Windows user gets the
+// `cc` fallback instead.
+cl_on_path :: proc(allocator: mem.Allocator) -> bool {
+	path_env := os.get_env("PATH", allocator)
+	defer delete(path_env, allocator)
+	if len(path_env) == 0 do return false
+
+	// split_iterator consumes its input; scanning a copy keeps path_env
+	// intact so the deferred delete frees the original buffer, not an
+	// interior pointer.
+	scan := path_env
+	found := false
+	for dir in strings.split_iterator(&scan, ";") {
+		candidate := os.join_path({dir, "cl.exe"}, allocator) or_continue
+		defer delete(candidate, allocator)
+		if os.is_file(candidate) {
+			found = true
+			break
+		}
+	}
+
+	return found
+}
+
+// stage_time reports one pipeline stage's elapsed time to stderr, gated on
+// -time. stderr keeps the program's own stdout output clean — the demo's
+// "result = ..." line stays the only thing on stdout. The C compiler step
+// is the usual suspect for a slow demo; the other stages prove whether
+// that is true or the front end carries the real cost.
+stage_time :: proc(name: string, start: time.Time, enabled: bool) {
+	if !enabled do return
+	fmt.eprintf("time: %-14s %.3f ms\n", name, time.duration_milliseconds(time.since(start)))
 }

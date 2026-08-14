@@ -3,6 +3,7 @@ result
 .direnv
 *.sublime-workspace
 /gauge
+/gauge.exe
 *.o
 *.bin
 
@@ -11,3 +12,5 @@ demo.c
 demo
 gauge_program.c
 gauge_program
+gauge_program.exe
+*.obj

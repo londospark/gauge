@@ -21,7 +21,7 @@ jobs:
             | jq -r '.assets[] | select(.name | contains("linux-amd64")) | .browser_download_url')
           curl -fsSL -o odin.tar.gz "$asset"
           tar -xzf odin.tar.gz
-          mv odin-linux-amd64-nightly+*/ odin
+          mv odin-*/ odin
           echo "$GITHUB_WORKSPACE/odin" >> "$GITHUB_PATH"
           echo "ODIN_ROOT=$GITHUB_WORKSPACE/odin" >> "$GITHUB_ENV"
 
@@ -49,3 +49,35 @@ jobs:
         with:
           report_paths: junit/*.xml
           token: ${{ github.token }}
+
+  windows-build-and-test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Odin (latest prebuilt nightly)
+        shell: pwsh
+        run: |
+          $asset = (Invoke-RestMethod https://api.github.com/repos/odin-lang/Odin/releases/latest).assets |
+            Where-Object { $_.name -like "*windows-amd64*" } |
+            Select-Object -First 1 -ExpandProperty browser_download_url
+          Invoke-WebRequest -Uri $asset -OutFile odin.zip
+          Expand-Archive -Path odin.zip -DestinationPath odin
+          $odinDir = (Get-ChildItem odin -Directory | Select-Object -First 1).FullName
+          Add-Content -Path $env:GITHUB_PATH -Value $odinDir
+          "ODIN_ROOT=$odinDir" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Set up MSVC (cl judges the e2e tests)
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Check Odin
+        run: odin version
+
+      - name: Build
+        run: odin build .
+
+      - name: Test compiler
+        run: odin test compiler/
+
+      - name: Demo end-to-end (gauge -> C -> cl -> run)
+        run: .\gauge.exe -time demo.gauge

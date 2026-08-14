@@ -44,8 +44,12 @@ test_generate_const_number :: proc(t: ^testing.T) {
 
 @(test)
 test_generate_const_reference :: proc(t: ^testing.T) {
-	// x :: 5, y :: x — an identifier reference emits bare; declarations
-	// already in dependency order stay in order.
+	// x :: 5, y :: x — a reference substitutes the referenced const's
+	// emitted value, so the initializer stays a true C constant
+	// expression: `const` variables are not constant expressions in C,
+	// and MSVC rejects `static const int y = x;` with C2099 (gcc/clang
+	// accept it as an extension). The substitution is possible because
+	// emission is dependency-ordered — x is always emitted first.
 	arena := new_test_arena(t)
 	program := build_program(arena,
 		new_const("x", nil, new_number("5", 0, arena), 0, arena),
@@ -53,8 +57,8 @@ test_generate_const_reference :: proc(t: ^testing.T) {
 	)
 
 	output := generate(program, arena)
-	testing.expectf(t, output == "static const int x = 5;\nstatic const int y = x;\n",
-		"want %q, got %q", "static const int x = 5;\nstatic const int y = x;\n", output)
+	testing.expectf(t, output == "static const int x = 5;\nstatic const int y = 5;\n",
+		"want %q, got %q", "static const int x = 5;\nstatic const int y = 5;\n", output)
 }
 
 @(test)
@@ -69,8 +73,8 @@ test_generate_forward_reference_reordered :: proc(t: ^testing.T) {
 	)
 
 	output := generate(program, arena)
-	testing.expectf(t, output == "static const int x = 5;\nstatic const int y = x;\n",
-		"want %q, got %q", "static const int x = 5;\nstatic const int y = x;\n", output)
+	testing.expectf(t, output == "static const int x = 5;\nstatic const int y = 5;\n",
+		"want %q, got %q", "static const int x = 5;\nstatic const int y = 5;\n", output)
 }
 
 // --- The ordering pass, through generate ------------------------------
@@ -92,7 +96,7 @@ test_generate_forward_chain :: proc(t: ^testing.T) {
 	)
 
 	output := generate(program, arena)
-	expected := "static const int x = 5;\nstatic const int y = x;\nstatic const int z = y;\n"
+	expected := "static const int x = 5;\nstatic const int y = 5;\nstatic const int z = 5;\n"
 	testing.expectf(t, output == expected, "want %q, got %q", expected, output)
 }
 
@@ -113,7 +117,7 @@ test_generate_diamond_dependency :: proc(t: ^testing.T) {
 	)
 
 	output := generate(program, arena)
-	expected := "static const int a = 1;\nstatic const int b = a;\nstatic const int c = a;\nstatic const int d = (b + c);\n"
+	expected := "static const int a = 1;\nstatic const int b = 1;\nstatic const int c = 1;\nstatic const int d = (1 + 1);\n"
 	testing.expectf(t, output == expected, "want %q, got %q", expected, output)
 }
 
@@ -129,7 +133,7 @@ test_generate_forward_reference_type_flows :: proc(t: ^testing.T) {
 	)
 
 	output := generate(program, arena)
-	expected := "static const double x = 3.;\nstatic const double y = x;\n"
+	expected := "static const double x = 3.;\nstatic const double y = 3.;\n"
 	testing.expectf(t, output == expected, "want %q, got %q", expected, output)
 }
 
@@ -178,7 +182,7 @@ test_generate_undefined_ref_does_not_block_ready :: proc(t: ^testing.T) {
 	)
 
 	output := generate(program, arena)
-	expected := "static const int a = 1;\nstatic const int b = a;\nstatic const int c = z;\n"
+	expected := "static const int a = 1;\nstatic const int b = 1;\nstatic const int c = z;\n"
 	testing.expectf(t, output == expected, "want %q, got %q", expected, output)
 }
 
@@ -204,7 +208,7 @@ test_generate_ordering_general_case :: proc(t: ^testing.T) {
 	)
 
 	output := generate(program, arena)
-	expected := "static const int a = 1;\nstatic const int b = (a + 1);\nstatic const int c = (b * 2);\nstatic const int d = (c + b);\nstatic const int e = missing;\n"
+	expected := "static const int a = 1;\nstatic const int b = (1 + 1);\nstatic const int c = ((1 + 1) * 2);\nstatic const int d = (((1 + 1) * 2) + (1 + 1));\nstatic const int e = missing;\n"
 	testing.expectf(t, output == expected, "want %q, got %q", expected, output)
 }
 
@@ -222,8 +226,8 @@ test_generate_reference_type_propagates :: proc(t: ^testing.T) {
 	)
 
 	output := generate(program, arena)
-	testing.expectf(t, output == "static const double x = 3.;\nstatic const double y = x;\n",
-		"want %q, got %q", "static const double x = 3.;\nstatic const double y = x;\n", output)
+	testing.expectf(t, output == "static const double x = 3.;\nstatic const double y = 3.;\n",
+		"want %q, got %q", "static const double x = 3.;\nstatic const double y = 3.;\n", output)
 }
 
 @(test)

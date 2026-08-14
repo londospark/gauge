@@ -611,8 +611,15 @@ failed acquisition (an error return vs a zero value).
 IR — `cc` is the runtime, so gauge programs compile and run. The
 provisional value domain: dotless numbers emit as C `int`, dotted numbers
 as `double`, literals verbatim; C's implicit conversions bridge the split.
-Strings emit as the §11.17 pointer+length pair, never C strings — the
-compiler computes the length at compile time.
+Const references fold at emission: a const's initializer substitutes the
+referenced const's already-emitted value, so every initializer is a true C
+constant expression — C `const` objects are *not* constant expressions
+(MSVC rejects `static const int y = x;` with C2099; gcc/clang accept the
+reference form as an extension), and emission is dependency-ordered, so
+the referenced value is always already known. An undeclared or cyclic
+reference has no folded value and emits its name verbatim, for cc to
+report. Strings emit as the §11.17 pointer+length pair, never C strings —
+the compiler computes the length at compile time.
 
 **The codegen entry point** takes the AST and the allocator (§11.12) and
 returns C text with no error return: codegen-visible failures — undeclared

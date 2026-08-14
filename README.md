@@ -17,8 +17,8 @@ A consistent syntax that just does what people want it to do — see [docs/desig
 - **Newlines are explicit tokens**, so the parser decides whether one ends a statement.
 - Token values are **zero-copy slices** of the source; strings are escape-aware (`\"`, `\\`).
 - **Table-driven test suites** (`compiler/lexer_test.odin`, `compiler/parser_test.odin`, ...) run with one command — `devenv shell --quiet odin test compiler/`; the whole compiler is a single package, so one invocation runs everything.
-- A **C backend** that turns consts into real C — emitted in dependency order (forward refs are legal in gauge but not in C; consts are pure, so reordering is sound), with the provisional int/double split and pointer+length strings to come (§11.17, §11.20). `cc` is the runtime: the generated C is compiled and run, not interpreted.
-- The **demo** goes all the way: gauge source → C → `cc` → a binary that runs and prints. Requires a C compiler — the flake carries `gcc`; plain-Odin setups need one installed. The generated `gauge_program.c` and binary are gitignored.
+- A **C backend** that turns consts into real C — emitted in dependency order (forward refs are legal in gauge but not in C; consts are pure, so reordering is sound), with references folded to their emitted values so every initializer is a valid C constant expression on any compiler (MSVC rejects the reference form with C2099). Provisional int/double split and pointer+length strings to come (§11.17, §11.20). The generated C is compiled and run, not interpreted — MSVC's `cl` on Windows (from a Developer Prompt), `cc` everywhere else.
+- The **demo** goes all the way: gauge source → C → C compiler → a binary that runs and prints. Requires a C compiler — the flake carries `gcc`; plain-Odin setups need MSVC (run gauge from a Developer Prompt) or any `cc` on PATH. The generated `gauge_program.c` and binary are gitignored.
 
 ## The lexer at a glance
 
@@ -53,7 +53,7 @@ The toolchain (Odin master, gdb, gf2, gcc) is declared in the **devenv flake** (
 2. Enter the environment: `devenv shell` (first run compiles Odin from master — grab a coffee).
 3. Run the demo: `devenv shell --quiet odin run . -- demo.gauge` — the `--` hands the argument to gauge rather than odin (which has its own `-file` flag). · test: `devenv shell --quiet odin test compiler/`.
 
-The demo reads the named `.gauge` file, compiles it to C, runs `cc`, and executes the binary — printing `result = <the value of Print>` from the file's consts.
+The demo reads the named `.gauge` file, compiles it to C, runs `cc`, and executes the binary — printing `result = <the value of Print>` from the file's consts. Add `-time` to see how long each stage took (the front end is milliseconds; the C compiler is the slow coach, as expected).
 
 (`nix develop --no-pure-eval` enters the same environment.)
 
@@ -72,7 +72,7 @@ scoop install odin
 # or download the nightly from https://odin-lang.org
 ```
 
-Then `odin run .` and `odin test compiler/` work with no Nix involved.
+Then `odin run .` and `odin test compiler/` work with no Nix involved. The demo's final compile step uses MSVC's `cl` when it is on PATH (run gauge from a **Developer Prompt**), and falls back to `cc` — a mingw gcc installed via Scoop or Strawberry Perl works too.
 
 ### macOS
 

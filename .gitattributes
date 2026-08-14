@@ -1,0 +1,4 @@
+# Text files are normalised to LF in the index, whatever the committer's
+# platform or autocrlf setting — unix checkouts stay LF, Windows keeps its
+# CRLF worktree, and neither can trip the other.
+* text=auto
