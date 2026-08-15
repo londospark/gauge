@@ -64,7 +64,6 @@ generate :: proc(program: ^Program, allocator: mem.Allocator) -> string {
 	}
 
 	const_references := make(ConstRefs, allocator)
-	unemitted := make([dynamic]Expr, allocator)
 	for decl in program.decls {
 		#partial switch d in decl {
 		case Const:
@@ -81,7 +80,6 @@ generate :: proc(program: ^Program, allocator: mem.Allocator) -> string {
 
 			const_references[d.name] = make([dynamic]IdentifierToken, allocator)
 			collect_refs(d.value, &const_references[d.name])
-			append(&unemitted, d)
 		}
 	}
 
@@ -170,7 +168,7 @@ emit_const :: proc(codegen: ^Codegen, const: ^Const, allocator: mem.Allocator) {
 			// C consts are not constant expressions — MSVC rejects
 			// `static const int y = x;` with C2099 while gcc/clang
 			// accept it as an extension. Substitute the referenced
-			// const's already-emitted value so initializers stay true
+			// const's already-emitted value so initialisers stay true
 			// C constant expressions on every compiler. The value is
 			// known because emission is dependency-ordered; an
 			// undeclared or cyclic reference has no entry and falls
