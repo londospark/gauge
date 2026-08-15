@@ -140,9 +140,10 @@ land with the typed-parameters slice.
 
 A parameter is `name : type`, using the type grammar of §6. The list is
 comma-separated and may be empty: `proc()` declares zero parameters and is
-*not* the `()` unit value (that is a separate slice). Proc signatures are
-explicitly typed (type_system.md §3) — unannotated recursive parameters are
-where HM inference goes undecidable-ish.
+*not* the `()` unit value (that is a separate slice). A trailing comma is
+rejected — `proc(x : int,)` is a parse error (ARB 0003). Proc signatures
+are explicitly typed (type_system.md §3) — unannotated recursive parameters
+are where HM inference goes undecidable-ish.
 
 Deferred, with the slices that provide them:
 
@@ -158,7 +159,9 @@ Deferred, with the slices that provide them:
 The signature parens are zones (§11.16), so a multi-line parameter list
 parses with no extra machinery — the same payoff call arguments get. Return
 lists (`-> (int, bool)`) land with the multiple-return-values slice
-(type_system.md §4); the signature has room for them after the parens.
+(type_system.md §4); the signature has room for them after the parens. The
+proc's own optional type slot (`main : int :: proc()`) is consumed but
+discarded today — result types land with the same card (ARB 0003).
 
 ### 5.4 Variables *(deferred)*
 
@@ -732,3 +735,24 @@ only worth it when the front end outgrows the C mapping, and then ideally
 via LLVM's DIBuilder if that backend ever exists. A bonus: `#line` makes
 cc's diagnostics point at gauge source too — the semantic-checker-is-cc
 story gains gauge-coordinate errors.
+
+### 11.22 FFI: every call is a C function call *(deferred)*
+
+**Decision.** Until the semantic checker's name resolution lands, a call
+emits straight to C: `Call` becomes `name(arg, arg, ...)`, each argument
+emitted in the runtime context — the FFI seam, recorded in ARB 0003. Gauge
+procs therefore cannot call each other yet. `main.odin` keeps
+`#include <stdio.h>` hardcoded for this slice, so `printf` and friends are
+immediately playable; the demo's `main :: proc()` is the program's real
+entry point, and the handwritten C `main` in `main.odin` is deleted when
+the slice lands.
+
+**Procedure emission.** Procs emit after consts (dependency order), in
+declaration order, as C functions with `void` return (returns are
+deferred) — including `main`, which is `void main(void)`, not a special
+case (ARB 0003). A proc body is the block's newline-separated expression
+list, each expression a C statement. Identifiers in bodies reference the
+emitted `static const`s verbatim; parameter types ride a small name map
+(`int`→`int`, `f64`→`double`, unknown names verbatim, `^T`→`T *`); string
+literals pass through between quotes — gauge escapes coincide with C's and
+strings are line-constrained (§3), so nothing leaks into the literal.

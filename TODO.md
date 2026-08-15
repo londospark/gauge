@@ -19,12 +19,10 @@ lives in `spec/` — this file tracks *status* only.
 Deferred language features mirror `spec/language.md` §10; recorded design
 decisions live in §11.
 
-- **Calls and assignment** — `f(x)` and `x = expr` have binding-power rows
-  but `parse_infix` rejects them with "not implemented yet" errors
-  (ARB 0001); the call-side `parse_args` lands with this slice (the
-  signature parens are consumed by `parse_params`). Re-enables
-  `test_parse_multiline_args` and `test_parse_proc_body` (Equals arm);
-  multi-line argument lists are pinned by the former (§11.16).
+- **Assignment** — `x = expr` has the `(2,1)` binding-power row but
+  `parse_infix` rejects it with "Assignment is not implemented yet"
+  (ARB 0001); the Equals arm lands with this card. Re-enables
+  `test_parse_proc_body` (its `answer = 40 + 2` body).
 - **`()` unit value** — the `Unit` node exists in the AST; `()` is
   currently a source error.
 - **Variables** — `x := expr` and `x : Type = expr`; same optional type
@@ -45,8 +43,6 @@ decisions live in §11.
   stays true.
 - **`switch`** — exhaustive matching for DUs; pulled in by the DU slice
   (`docs/type_system.md` §6).
-- **Typed parameters** — `proc(x: int) -> int`; the syntax is recorded in
-  §5.3, and `parse_params` grows the `name : type` list when this lands.
 - **Multiple return values** — `-> (int, string)` return lists,
   `a, b := f()` multi-binding; no tuple type. See `docs/type_system.md`
   §4.
@@ -62,6 +58,21 @@ decisions live in §11.
 
 ## Next up
 
+- **Typed parameters** — `proc(x: int)`; `parse_params` grows the
+  `name : type` list. A trailing comma is rejected and the proc's own
+  type slot stays discarded (ARB 0003); `-> int` returns land with the
+  multiple-return-values card (§5.3).
+- **Calls (positional)** — the `(` infix arm grows `parse_args` (the
+  comma-separated argument list; `f()` legal, trailing commas rejected,
+  §11.18). Re-enables `test_parse_multiline_args` — multi-line argument
+  lists ride the paren zone (§11.16). The FFI slice below turns every
+  call into a C function call.
+- **FFI and procedure emission** — remove the hardcoded `main` from
+  `main.odin`: procs emit as C functions (`void name(params)`, `main` as
+  `void main(void)` — no special case), every call is a C function call,
+  `#include <stdio.h>` stays hardcoded, and the demo becomes a gauge
+  `main :: proc()` that calls `printf` (ARB 0003, §11.22). The e2e
+  tests' hand-rolled wrapper mains are rewritten into the gauge source.
 - **Error recovery and multi-diagnostic reporting** — `lex` and `parse`
   fail fast today: the first
   error is the only error, so one bad declaration hides the rest of the
