@@ -14,7 +14,7 @@ A consistent syntax that just does what people want it to do — see [docs/desig
 
 - A **cursor-based lexer** that turns source text into a token stream.
 - Tokens carry **byte offsets**, not line/column numbers — positions stay O(1) to jump to, and the editor/compiler pipeline never has to count newlines.
-- **Newlines are explicit tokens**, so the parser decides whether one ends a statement.
+- **Newlines are explicit tokens**, so the parser decides whether one ends an expression.
 - Token values are **zero-copy slices** of the source; strings are escape-aware (`\"`, `\\`).
 - **Table-driven test suites** (`compiler/lexer_test.odin`, `compiler/parser_test.odin`, ...) run with one command — `devenv shell --quiet odin test compiler/`; the whole compiler is a single package, so one invocation runs everything.
 - A **C backend** that turns consts into real C — emitted in dependency order (forward refs are legal in gauge but not in C; consts are pure, so reordering is sound), with references folded to their emitted values so every initializer is a valid C constant expression on any compiler (MSVC rejects the reference form with C2099). Provisional int/double split and pointer+length strings to come (§11.17, §11.20). The generated C is compiled and run, not interpreted — MSVC's `cl` on Windows (from a Developer Prompt), `cc` everywhere else.

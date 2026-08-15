@@ -186,7 +186,7 @@ File("data.txt") { parse_config() }            // file_close returns void → va
 commands := ClayLayout { /* widgets */ }        // clay_end_layout returns Commands → value = commands
 ```
 
-In the gated form the block is a statement; its value is not used. (An
+In the gated form the block is a unit expression; its value is not used. (An
 `if`-expression that also gates is future work, listed below.)
 
 ## Semantics
@@ -596,7 +596,7 @@ is near-zero, not literally zero.
 destructor's return when the destructor returns a non-unit type, otherwise the
 body's last expression — and the resource declaration tells you which case
 you're in. It matches the immediate-mode mental model ("the frame produces the
-render commands"). In statement position the value is discarded, and the
+render commands"). In a discard position the value is discarded, and the
 gated form is never used for a value. It's a subtlety worth naming, not a
 reason to drop the feature. (Silver lining: the value is produced *after* the
 resource is torn down, so a value-producing destructor's output can't alias the

@@ -49,7 +49,9 @@ DeclTyped.    Decl ::= Ident ":" Type ":" Expr ;
 DeclProc.      Decl ::= Ident ":" ":" "proc" "(" ")" Block ;
 DeclProcTyped. Decl ::= Ident ":" Type ":" "proc" "(" ")" Block ;
 -- deferred: Param.         Param ::= Ident ":" Type ;
--- deferred: DeclVar.       Decl ::= Ident ":=" Expr ;
+-- The variable forms: `:=` is not a token — it is `:` `=` with an empty
+-- type slot (§5.4), the variable analogue of the const `::`.
+-- deferred: DeclVar.       Decl ::= Ident ":" "=" Expr ;
 -- deferred: DeclVarT.      Decl ::= Ident ":" Type "=" Expr ;
 -- deferred: DeclVarZ.      Decl ::= Ident ":" Type ;   -- ZII: zero-initialised, no initialiser (§11.19)
 

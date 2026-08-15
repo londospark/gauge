@@ -164,8 +164,9 @@ _, ok := lookup("x")       // discard the first, keep the second
   binding. `x : (int, string)` is *not* legal — there is no tuple type
   to write.
 - **Multi-binding assignment** consumes a return list positionally:
-  `a, b := f()`, `x, ok := ...`. The `:=` and `->` tokens are
-  multi-char operators on the backlog; this feature depends on both.
+  `a, b := f()`, `x, ok := ...`. `:=` is not a token — it is `:` `=`
+  with an empty type slot (§5.4); `->` is a multi-char operator on the
+  backlog.
 - **`(T, bool)` is this idiom's most common shape.** The scoping
   design's `(T, bool)` idiom — `ok` visible in the body, the
   constructor's `bool` as the gate — is *multi-return*, not a tuple.

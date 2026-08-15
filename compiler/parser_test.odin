@@ -1039,7 +1039,7 @@ test_allocator_discipline :: proc(t: ^testing.T) {
 //
 // Block bodies are newline-separated and never zones — that is what keeps
 // `;` out of the language. A group inside a block is contained by its
-// parens and must not disturb the statement separation around it.
+// parens and must not disturb the expression separation around it.
 //
 // The zone rule lives in zoning_pre_parse, the pre-pass at the head of
 // parse: NewLines at paren depth > 0 are dropped before the parser runs,
@@ -1525,7 +1525,7 @@ test_parse_rejects_second_decl_on_same_line :: proc(t: ^testing.T) {
 test_zoning_pre_parse_braces_are_not_zones :: proc(t: ^testing.T) {
 	// { 4\n2 } — braces must never touch the counter: the NewLine inside
 	// the block survives. If the pre-pass treated { } as a zone, block
-	// statements would silently merge into one expression — statement
+	// expressions would silently merge into one expression — expression
 	// separation lost without a single error. This pins the asymmetry.
 	tokens := []Token{
 		{offset = 0, value = SimpleToken.LSquirly},
@@ -1589,11 +1589,11 @@ test_zoning_pre_parse_stray_closer_does_not_poison :: proc(t: ^testing.T) {
 
 // RED: parse rejects at the proc dispatch before parse_block is reached.
 // Pins the zone-inside-block contract: the group is contained by its parens
-// and must not disturb statement separation around it — if zone depth
-// leaked past `)`, the two statements would merge into one.
+// and must not disturb expression separation around it — if zone depth
+// leaked past `)`, the two expressions would merge into one.
 @(test)
 test_parse_multiline_group_inside_block :: proc(t: ^testing.T) {
-	// main :: proc() {\n(1 +\n2)\n(3 +\n4)\n} — two statements, each a
+	// main :: proc() {\n(1 +\n2)\n(3 +\n4)\n} — two expressions, each a
 	// multi-line group. The block body stays newline-separated (braces
 	// are not zones); the groups absorb their own newlines.
 	tokens := []Token{
@@ -1636,9 +1636,9 @@ test_parse_multiline_group_inside_block :: proc(t: ^testing.T) {
 }
 
 @(test)
-test_parse_rejects_two_statements_on_one_line_in_block :: proc(t: ^testing.T) {
-	// main :: proc() {\n1 2\n} — a statement occupies its line (§11.16):
-	// while `1`'s line is still open, the `2` cannot start a statement.
+test_parse_rejects_two_expressions_on_one_line_in_block :: proc(t: ^testing.T) {
+	// main :: proc() {\n1 2\n} — an expression occupies its line (§11.16):
+	// while `1`'s line is still open, the `2` cannot start an expression.
 	tokens := []Token{
 		{offset = 0, value = IdentifierToken("main")},
 		{offset = 5, value = SimpleToken.Colon},
@@ -1656,7 +1656,7 @@ test_parse_rejects_two_statements_on_one_line_in_block :: proc(t: ^testing.T) {
 	}
 
 	program, ok, _ := parse(tokens, new_test_arena(t))
-	testing.expectf(t, !ok, "want a parse error for two statements on one line in a block, but parse succeeded")
+	testing.expectf(t, !ok, "want a parse error for two expressions on one line in a block, but parse succeeded")
 	_ = program
 }
 

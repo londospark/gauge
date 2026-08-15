@@ -367,10 +367,8 @@ parse_block :: proc(p: ^Parser, allocator: mem.Allocator) -> (block: ^Block, ok:
 		expr := parse_expression(p, 0, allocator) or_return
 		append(&exprs, expr)
 
-		// A statement occupies its line (§11.16) — it ends at a newline or
-		// the block's `}`, never at the start of the next statement.
 		if !is_simple(p, .NewLine) && !is_simple(p, .RSquirly) {
-			p.err = fmt.tprintf("Expected a newline after the statement at byte %d, got %v — one statement per line, this isn't a marshalling yard", current(p).offset, current(p).value)
+			p.err = fmt.tprintf("Expected a newline after the expression at byte %d, got %v — one expression per line, this isn't a marshalling yard", current(p).offset, current(p).value)
 			return nil, false
 		}
 		skip_newlines(p)

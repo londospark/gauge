@@ -133,7 +133,7 @@ time, never a hang or panic. See [docs/design.md](../docs/design.md).
 
 `identifier : [type] : proc ( params ) block` — the `proc` keyword is lexed
 and recognised; the dispatch and blocks are implemented. A block body is a
-newline-separated statement list (§11.16): a statement occupies its line,
+newline-separated expression list (§11.16): an expression occupies its line,
 ending at a newline or the block's `}`. The parameter list is not — today
 `parse_params` consumes the empty `( )`, and typed `name : type` parameters
 land with the typed-parameters slice.
@@ -149,9 +149,11 @@ Deferred, with the slices that provide them:
 - **Default values** — `name : type = default`, reusing the `=` initialiser
   of §5.4's `x : type = expr` form; `=` is already a token, so defaults add
   no lexing.
-- **Inferred parameters** — `name := default`. The `:=` token needs the
-  multi-char operator slice, and inference without a default has no type
-  source, so this is a defaults variant, not standalone syntax.
+- **Inferred parameters** — `name := default`, i.e. `name : = default`
+  (an empty type slot — `:=` is not a token, §5.4). What defers this is
+  the default value itself, not the syntax; inference without a default
+  has no type source, so this is a defaults variant, not standalone
+  syntax.
 
 The signature parens are zones (§11.16), so a multi-line parameter list
 parses with no extra machinery — the same payoff call arguments get. Return
@@ -160,8 +162,35 @@ lists (`-> (int, bool)`) land with the multiple-return-values slice
 
 ### 5.4 Variables *(deferred)*
 
-`x := expr` and `x : Type = expr` use the same optional type slot; the
-declaration binder differs from constants.
+`x := expr` and `x : Type = expr` use the same optional type slot as
+consts, with `=` for the binder where consts use `:`. `:=` is not a token:
+`x := expr` reads `x : = expr`, the empty-slot (inferred) declaration —
+the variable analogue of `x :: expr`.
+
+`:=` declares a fresh name only; a pre-declared name is a redeclaration
+error, with one exception: `_` binds nothing and may be redeclared freely
+(ARB 0002 — "redeclaring the discard"). `=` assigns to any pre-declared
+name and is the initialiser in the typed form `x : Type = expr`. `_` is a
+discard slot that binds nothing, legal in any binding position:
+`_, _ = f()`.
+
+Multi-binding mirrors the single form: `a, b := f()` (inferred,
+`a, b : = f()`) or `a, b : T, U = f()` (typed by a positional type list
+aligned with the return list). `_` slots bind nothing and need no
+declaration in any form: `_, y = f()` assigns the second return to a
+pre-declared `y`, and `_, y : T, bool = f()` declares `y` fresh.
+
+A declaration with an initialiser is atomic: `x : int = 5` is one store —
+the initialiser *replaces* the ZII default, which fires only when the
+initialiser is absent (DeclVarZ). The "declare then assign" reading of
+`x := 5` (`x : int` zero-inits, then `x = 5`) is a mental model only,
+never the implementation: there is no wasted zero-write. The empty-slot
+form desugars in the checker to the typed form after type inference; the
+parser keeps the slot empty.
+
+Names are block-scoped. Redeclaring a name in the same scope is an error;
+an inner scope may shadow an outer name, but the shadow draws a warning.
+The opt-out tag is deferred with the language's whole tag system.
 
 ## 6. Types
 
@@ -476,7 +505,7 @@ future path, and the lesson follow at the end of the entry.
    next line is eaten as the operand) — the failure mode to refuse.
 
 **Why option 2 (tentatively).** `{ }` must *not* become zones, or block
-statements would need `;` — which gauge deliberately does not have. Option 2
+expressions would need `;` — which gauge deliberately does not have. Option 2
 keeps blocks newline-separated and `;` out of the language, preserves the
 trailing-operator invariant (continuation requires explicit parens, so
 `test_parse_rejects_trailing_operator` survives), and gives the deferred
@@ -514,9 +543,9 @@ the newline is neither `::` nor a type — while the tail rule is a new
 check in the parse loop. A default by accident and a deliberate
 completion; both are now rules.)
 
-Blocks inherit the same rule: a statement occupies its line, ending at a
+Blocks inherit the same rule: an expression occupies its line, ending at a
 newline or the block's `}`. The escape hatch for putting more than one
-statement on a line is `;` — recorded, and deliberately deferred: the
+expression on a line is `;` — recorded, and deliberately deferred: the
 newline model is primary, and `;` is an unrecognised character until the
 day it is claimed.
 
@@ -534,14 +563,14 @@ continues an expression *only when the current line ends incomplete*: a
 trailing operator absorbs the newline and the next line becomes its operand,
 with no parens required (`x :: 4 +` newline `2` becomes `4 + 2`). A complete
 line never triggers continuation — there is no lookahead past the newline —
-so `x :: 4 + 2` newline `- 3` stays two statements (the second a bare unary
+so `x :: 4 + 2` newline `- 3` stays two expressions (the second a bare unary
 expression) and the deciding question still answers **no**. Because the only
 newly-legal program is the trailing-operator case (an error today), the move
 is a strict relaxation that changes the meaning of no currently-legal
 program. The *full* incompleteness model — Haskell/OCaml's rule that a
 complete line before a leading operator also continues — is deliberately not
 the target: there, `4 + 2` newline `- 3` silently merges into `4 + 2 - 3`,
-turning a bare unary statement into a subtraction. A meaning change that
+turning a bare unary expression into a subtraction. A meaning change that
 needs no parens is the failure mode to refuse.
 
 **Lesson.** The pre-decision behaviour was a parser *default* dressed as a

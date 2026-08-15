@@ -38,8 +38,9 @@ decisions live in §11.
   see §4 of the same doc.)
 - **Generic types** — parametric polymorphism; the HM generalisation in
   `docs/type_system.md` §3 is the foundation.
-- **Multi-char operators** — `->`, `:=`, `==` and friends; lexer, token
-  table, and precedence rows together.
+- **Multi-char operators** — `->`, `==` and friends; lexer, token
+  table, and precedence rows together. (`:=` is *not* a token — it is
+  `:` `=` with an empty type slot, §5.4.)
 - **`if` / `while` / `return` as expressions** — everything-is-an-expression
   stays true.
 - **`switch`** — exhaustive matching for DUs; pulled in by the DU slice
@@ -83,7 +84,7 @@ decisions live in §11.
   and prints every diagnostic. Open decisions at implementation time:
   lexer recovery (skip unrecognised chars; unterminated strings run to
   the newline — correct there because strings, unlike declarations,
-  are line-constrained), statement-level sync inside blocks, and
+  are line-constrained), expression-level sync inside blocks, and
   expression-level resync on `)`/`,`. language.md §8 lands in the same
   commit.
 - **`defer`** — block-scoped, LIFO, cleanup on every exit path. This is the
@@ -148,10 +149,10 @@ multi-line decision lands with the paren-zone pre-pass in this commit.*
   (`map[IdentifierToken]bool`) and Kahn's/DFS with cycle-path diagnostics.
   Strings emit as the §11.17 pointer + length pair later; the backend grows
   with the blocks, procs, calls, and assignment slices.
-- **Blocks and procedures** — `{ ... }` blocks with the §11.16 statement
-  loop (a statement occupies its line, ending at a newline or `}`) and the
+- **Blocks and procedures** — `{ ... }` blocks with the §11.16 expression
+  loop (an expression occupies its line, ending at a newline or `}`) and the
   `proc` dispatch (`name :: proc() { }`), including the typed-slot form.
-  The block statement tests are green; `test_parse_proc_body` and
+  The block expression tests are green; `test_parse_proc_body` and
   `test_parse_multiline_args` re-enable with the calls/assignment card.
   Unimplemented parser paths return errors, not panics (ARB 0001);
   `parse_params` consumes the signature parens until typed parameters land

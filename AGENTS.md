@@ -42,12 +42,13 @@ All tools live in the project's devenv shell — there is nothing installed ad-h
 
 - Code semantics — panic-vs-error (compiler bugs vs source bugs), `(T, bool)` + `or_return` propagation, stub/`todo` conventions, `@Note`/`@Review` lifecycle — live in `docs/style_guide.md`. Significant semantic decisions are recorded as ARBs in `docs/arb/` (see its README).
 - `Token` is `{ offset: int, value: ValueToken }`. Positions are **byte offsets**, never line/col.
-- Newlines are explicit `NewLine` tokens; the parser decides if one ends a statement — `zoning_pre_parse` drops NewLines inside paren zones before the parser runs (§11.16).
+- Newlines are explicit `NewLine` tokens; the parser decides if one ends an expression — `zoning_pre_parse` drops NewLines inside paren zones before the parser runs (§11.16).
 - The lexer's `lex_peek`/`lex_advance` return `(u8, bool)` — `false` means EOF. Never use `0` as an EOF sentinel (NUL is a valid byte).
 - `lex_identifier`/`lex_string`/`lex_number` return `(Token, bool)`; `lex` returns `(tokens, ok)` and stops on the first error.
 - Line comments (`//`) are skipped by the lexer; `Slash` is only emitted when the `/` isn't followed by another `/`.
 - String values are escape-aware (`\"`, `\\`) and are zero-copy slices of the source.
 - The compiler is a single `compiler/` package — token types, lexer, parser, and codegen together; `main.odin` imports it by package path.
+- Gauge has **no statements, only expressions** (docs/design.md): anything you might call a statement is an expression — a declaration occupies its line, a block body is a newline-separated list of expressions (§11.16). Never write "statement" in code, comments, or docs; say *expression*.
 
 ## Formatting (manual — there is no odinfmt)
 
