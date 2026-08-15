@@ -151,11 +151,15 @@ peek :: proc(p: ^Parser, ahead: int) -> Token {
 	return p.tokens[pos]
 }
 
-is_eof :: proc(p: ^Parser) -> bool {
-	if simple, ok := current(p).value.(SimpleToken); ok && simple == .EOF {
+is_simple :: proc(p: ^Parser, t: SimpleToken) -> bool {
+	if simple, ok := current(p).value.(SimpleToken); ok && simple == t {
 		return true
 	}
 	return false
+}
+
+is_eof :: proc(p: ^Parser) -> bool {
+	return is_simple(p, .EOF)
 }
 
 skip_newlines :: proc(p: ^Parser) {
@@ -319,17 +323,60 @@ parse_prefix :: proc(p: ^Parser, allocator: mem.Allocator) -> (expr: ^Expr, ok: 
 }
 
 parse_infix :: proc(p: ^Parser, operator: Token, left: ^Expr, right: ^Expr, allocator: mem.Allocator) -> (expr: ^Expr, ok: bool) {
-	return new_binary(to_binary_operator(operator.value.(SimpleToken)), left, right, operator.offset, allocator), true
+	simple, is_simple := operator.value.(SimpleToken)
+	if !is_simple {
+		p.err = fmt.tprintf("Expected a binary operator at byte %d, got %v", operator.offset, operator.value)
+		return nil, false
+	}
+
+	// The Pratt loop only reaches here with operators binding_power admits;
+	// the rows without arms are the deferred slices, rejected as errors
+	// (ARB 0001) so a future `x = 5` fails loudly instead of parsing as
+	// `x + 5`.
+	#partial switch simple {
+	case .Equals:
+		p.err = fmt.tprintf("Assignment is not implemented yet (byte %d)", operator.offset)
+		return nil, false
+	case .LParen:
+		p.err = fmt.tprintf("Call expressions are not implemented yet (byte %d)", operator.offset)
+		return nil, false
+	}
+
+	return new_binary(to_binary_operator(simple), left, right, operator.offset, allocator), true
 }
 
-parse_args :: proc(p: ^Parser, allocator: mem.Allocator) -> (args: [dynamic]^Expr, ok: bool) {
-	panic("todo: parse_args")
+// The signature parens are a different production from call arguments:
+// parameters are `name : type` pairs (spec/language.md §5.3), arguments are
+// expressions. parse_args lands with the calls slice; until typed params
+// land, this only consumes the parens.
+parse_params :: proc(p: ^Parser) -> (ok: bool) {
+	expect_simple(p, .LParen) or_return
+	expect_simple(p, .RParen) or_return
+	return true
 }
 
 // --- blocks, declarations, program ---
 
-parse_block :: proc(p: ^Parser, allocator: mem.Allocator) -> (expr: ^Expr, ok: bool) {
-	panic("todo: parse_block")
+parse_block :: proc(p: ^Parser, allocator: mem.Allocator) -> (block: ^Block, ok: bool) {
+	offset := current(p).offset
+	expect_simple(p, .LSquirly) or_return
+	skip_newlines(p)
+
+	exprs := make([dynamic]^Expr, allocator)
+	for !is_simple(p, .RSquirly) {
+		expr := parse_expression(p, 0, allocator) or_return
+		append(&exprs, expr)
+
+		// A statement occupies its line (§11.16) — it ends at a newline or
+		// the block's `}`, never at the start of the next statement.
+		if !is_simple(p, .NewLine) && !is_simple(p, .RSquirly) {
+			p.err = fmt.tprintf("Expected a newline after the statement at byte %d, got %v — one statement per line, this isn't a marshalling yard", current(p).offset, current(p).value)
+			return nil, false
+		}
+		skip_newlines(p)
+	}
+	expect_simple(p, .RSquirly) or_return
+	return new_block(exprs, offset, allocator), true
 }
 
 parse_type :: proc(p: ^Parser, allocator: mem.Allocator) -> (type: ^Type, ok: bool) {
@@ -352,7 +399,11 @@ parse_decl :: proc(p: ^Parser, allocator: mem.Allocator) -> (decl: ^Expr, ok: bo
 		expect_simple(p, .Colon) or_return
 	}
 
-	if match_keyword(p, .Proc) do panic("todo: Procedures not implemented yet")
+	if token := current(p); match_keyword(p, .Proc) {
+		parse_params(p) or_return
+		body := parse_block(p, allocator) or_return
+		return new_proc(ident, body, offset, allocator), true
+	}
 
 	value := parse_expression(p, 0, allocator) or_return
 
@@ -465,8 +516,10 @@ new_call :: proc(name: IdentifierToken, args: [dynamic]^Expr, offset: int, alloc
 	return new_expr(Call { node = Node { offset = offset }, name = name, args = args }, allocator)
 }
 
-new_block :: proc(body: [dynamic]^Expr, offset: int, allocator: mem.Allocator) -> ^Expr {
-	return new_expr(Block { node = Node { offset = offset }, body = body }, allocator)
+new_block :: proc(body: [dynamic]^Expr, offset: int, allocator: mem.Allocator) -> ^Block {
+	block := new(Block, allocator)
+	block^ = Block { node = Node { offset = offset }, body = body }
+	return block
 }
 
 new_const :: proc(name: IdentifierToken, type: ^Type, value: ^Expr, offset: int, allocator: mem.Allocator) -> ^Expr {

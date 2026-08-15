@@ -203,8 +203,10 @@ test_parse_const_string :: proc(t: ^testing.T) {
 	expect_string(t, expect_const(t, program.decls[0], "greeting"), "hellope")
 }
 
-// @(test) DISABLED — proc-dispatch not yet implemented. Re-enable by
-// uncommenting the @(test) attribute when parse_decl grows the proc path.
+// RED: parse rejects `name :: proc() { }` with "Procedure declarations are
+// not implemented yet" (ARB 0001) — the proc dispatch is the blocks/procs
+// slice. Green when it parses to a Proc whose body is an empty Block.
+@(test)
 test_parse_empty_proc :: proc(t: ^testing.T) {
 	tokens := []Token{
 		{offset = 0, value = IdentifierToken("main")},
@@ -229,12 +231,9 @@ test_parse_empty_proc :: proc(t: ^testing.T) {
 	expect_block(t, expect_proc(t, program.decls[0], "main"), 0)
 }
 
-// @(test) DISABLED — needs two things: proc dispatch (parse_decl) and the
-// Equals infix arm (assignment is deferred to the calls/assignment card).
-// The body's `answer = 40 + 2` must become an Assign; until the Equals arm
-// lands, re-enabling this test panics — to_binary_operator has no .Equals
-// arm. test_parse_empty_proc and test_parse_multiline_group_inside_block
-// cover the blocks slice without it.
+// @(test) DISABLED — needs the Equals infix arm (the calls/assignment
+// card): `answer = 40 + 2` errors with "Assignment is not implemented yet"
+// (byte 25). Re-enable when parse_infix grows the Equals arm.
 test_parse_proc_body :: proc(t: ^testing.T) {
 	tokens := []Token{
 		{offset = 0, value = IdentifierToken("main")},
@@ -1588,11 +1587,11 @@ test_zoning_pre_parse_stray_closer_does_not_poison :: proc(t: ^testing.T) {
 	testing.expectf(t, filtered[5].offset == 10, "want `2` compacted to index 5 at offset 10, got offset %d", filtered[5].offset)
 }
 
-// @(test) DISABLED — blocks not yet implemented. Re-enable by uncommenting
-// the @(test) attribute when parse_decl grows the proc path and parse_block
-// lands. This pins the zone-inside-block contract: the group is contained
-// by its parens and must not disturb statement separation around it — if
-// zone depth leaked past `)`, the two statements would merge into one.
+// RED: parse rejects at the proc dispatch before parse_block is reached.
+// Pins the zone-inside-block contract: the group is contained by its parens
+// and must not disturb statement separation around it — if zone depth
+// leaked past `)`, the two statements would merge into one.
+@(test)
 test_parse_multiline_group_inside_block :: proc(t: ^testing.T) {
 	// main :: proc() {\n(1 +\n2)\n(3 +\n4)\n} — two statements, each a
 	// multi-line group. The block body stays newline-separated (braces
@@ -1636,11 +1635,36 @@ test_parse_multiline_group_inside_block :: proc(t: ^testing.T) {
 	expect_binary_at(t, body[1], .Add, 28)
 }
 
-// @(test) DISABLED — calls not yet implemented. Re-enable by uncommenting
-// the @(test) attribute when parse_args and the call infix arm land. This
-// pins §11.16's payoff: call parens are zones, so a multi-line argument
-// list parses with no special machinery — the same zone depth the grouping
-// arm pushes.
+@(test)
+test_parse_rejects_two_statements_on_one_line_in_block :: proc(t: ^testing.T) {
+	// main :: proc() {\n1 2\n} — a statement occupies its line (§11.16):
+	// while `1`'s line is still open, the `2` cannot start a statement.
+	tokens := []Token{
+		{offset = 0, value = IdentifierToken("main")},
+		{offset = 5, value = SimpleToken.Colon},
+		{offset = 6, value = SimpleToken.Colon},
+		{offset = 8, value = KeywordToken.Proc},
+		{offset = 12, value = SimpleToken.LParen},
+		{offset = 13, value = SimpleToken.RParen},
+		{offset = 15, value = SimpleToken.LSquirly},
+		{offset = 16, value = SimpleToken.NewLine},
+		{offset = 17, value = NumberToken("1")},
+		{offset = 19, value = NumberToken("2")},
+		{offset = 20, value = SimpleToken.NewLine},
+		{offset = 21, value = SimpleToken.RSquirly},
+		{offset = 22, value = SimpleToken.EOF},
+	}
+
+	program, ok, _ := parse(tokens, new_test_arena(t))
+	testing.expectf(t, !ok, "want a parse error for two statements on one line in a block, but parse succeeded")
+	_ = program
+}
+
+// @(test) DISABLED — needs the call infix arm (the calls/assignment card):
+// parse_infix rejects `(` with "Call expressions are not implemented yet"
+// (byte 7). Re-enable when the arm lands. Pins §11.16's payoff: call parens
+// are zones, so a multi-line argument list parses with no special machinery
+// — the same zone depth the grouping arm pushes.
 test_parse_multiline_args :: proc(t: ^testing.T) {
 	// x :: f(a,\nb) — the comma's newline is absorbed inside the call's
 	// paren zone. The Call node owns the args; the `(` offset 7 is the

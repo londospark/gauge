@@ -20,8 +20,11 @@ Deferred language features mirror `spec/language.md` §10; recorded design
 decisions live in §11.
 
 - **Calls and assignment** — `f(x)` and `x = expr` have binding-power rows
-  but no `parse_infix` arms; `parse_args` is a `todo` stub. Multi-line
-  argument lists depend on the §11.16 answer.
+  but `parse_infix` rejects them with "not implemented yet" errors
+  (ARB 0001); the call-side `parse_args` lands with this slice (the
+  signature parens are consumed by `parse_params`). Re-enables
+  `test_parse_multiline_args` and `test_parse_proc_body` (Equals arm);
+  multi-line argument lists are pinned by the former (§11.16).
 - **`()` unit value** — the `Unit` node exists in the AST; `()` is
   currently a source error.
 - **Variables** — `x := expr` and `x : Type = expr`; same optional type
@@ -41,8 +44,8 @@ decisions live in §11.
   stays true.
 - **`switch`** — exhaustive matching for DUs; pulled in by the DU slice
   (`docs/type_system.md` §6).
-- **Typed parameters** — `proc(x: int) -> int`; grows the deferred proc
-  forms of §5.3.
+- **Typed parameters** — `proc(x: int) -> int`; the syntax is recorded in
+  §5.3, and `parse_params` grows the `name : type` list when this lands.
 - **Multiple return values** — `-> (int, string)` return lists,
   `a, b := f()` multi-binding; no tuple type. See `docs/type_system.md`
   §4.
@@ -58,12 +61,8 @@ decisions live in §11.
 
 ## Next up
 
-- **Blocks and procedures** — `{ ... }` blocks and the `proc` dispatch
-  (`name :: proc() { }`). The `proc` keyword, the `Block`/`Proc` AST
-  shapes, and the two disabled proc tests already exist; `parse_block` and
-  `parse_args` are `todo` stubs and `parse_decl` panics on `proc`.
-- **Error recovery and multi-diagnostic reporting** *(starts after
-  blocks + procedures)* — `lex` and `parse` fail fast today: the first
+- **Error recovery and multi-diagnostic reporting** — `lex` and `parse`
+  fail fast today: the first
   error is the only error, so one bad declaration hides the rest of the
   file. Style guide §2 always scheduled this ("recovery is a later
   feature"). First slice: panic-mode recovery resyncing at the
@@ -149,3 +148,11 @@ multi-line decision lands with the paren-zone pre-pass in this commit.*
   (`map[IdentifierToken]bool`) and Kahn's/DFS with cycle-path diagnostics.
   Strings emit as the §11.17 pointer + length pair later; the backend grows
   with the blocks, procs, calls, and assignment slices.
+- **Blocks and procedures** — `{ ... }` blocks with the §11.16 statement
+  loop (a statement occupies its line, ending at a newline or `}`) and the
+  `proc` dispatch (`name :: proc() { }`), including the typed-slot form.
+  The block statement tests are green; `test_parse_proc_body` and
+  `test_parse_multiline_args` re-enable with the calls/assignment card.
+  Unimplemented parser paths return errors, not panics (ARB 0001);
+  `parse_params` consumes the signature parens until typed parameters land
+  (§5.3).

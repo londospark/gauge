@@ -12,22 +12,24 @@ Everything below hangs off one idea:
 ## 1. Panics are compiler bugs; errors are source bugs
 
 - `panic` means the **compiler** is wrong:
-  - an unimplemented path reached with valid input — `panic("todo: …")`,
   - a violated invariant,
   - out of memory.
 - `ok = false` (with a message on the receiver) means the **source program**
-  is wrong.
-- A valid program that reaches an unfinished path is a compiler bug, so it
-  panics. An invalid program that reaches a finished path is a source bug, so
-  it returns an error.
-- **Never report "not implemented" as an error value.** A message like
-  "procedures not implemented yet" looks like a real diagnostic, can ship by
-  accident, and passes tests. A panic cannot.
-- The panic sites are the roadmap: searching the codebase for
-  `panic("todo` lists every piece of unfinished work. A parser is done
-  exactly when that search is empty.
-- A panic that is not a `todo` is a bug report against the compiler — never
-  against the user's program.
+  is wrong — or the compiler has not implemented the feature yet. An
+  unimplemented path reached with valid input returns an error that says so
+  plainly: "Procedure declarations are not implemented yet (byte 8)".
+- A valid program that reaches an unfinished path reports that as an error,
+  not a panic (ARB 0001): the Odin test runner cannot survive a test that
+  panics, and the re-enabled slice tests assert the target shape, so a
+  "not implemented yet" error cannot ship past them.
+- **Never panic for "not implemented".** A message like the one above looks
+  like a real diagnostic; the slice tests are what stop it shipping — they
+  fail until the feature exists.
+- The "not implemented yet" returns are the roadmap: searching the codebase
+  for `not implemented yet` lists every piece of unfinished work. A parser
+  is done exactly when that search is empty.
+- A panic is a bug report against the compiler — never against the user's
+  program.
 
 ## 2. Error representation and propagation
 
@@ -40,8 +42,10 @@ Everything below hangs off one idea:
   are a property of the interface, not of the implementation.
 - Diagnostics are grammatical sentences: capitalised, positions reported as
   bytes. The house template is `Expected X at byte N, got Y` — e.g.
-  `Expected an expression at byte 12, got Star`. Internal panics (`todo: …`)
-  stay lowercase; they are not user-facing.
+  `Expected an expression at byte 12, got Star`. The one deliberate
+  exception is a not-implemented error: "X is not implemented yet (byte N)"
+  — the source is valid, so "Expected" would blame the program for the
+  compiler's gap.
 - Retrofitting failure handling is the most expensive thing to add later, so
   the `(T, bool)` shape is used by every parse function from day one — the
   one place we build ahead of the slice.
@@ -50,10 +54,13 @@ Everything below hangs off one idea:
 
 - Write callers before callees. The dispatch and the contracts are the
   skeleton; the leaf machinery fills in behind them ("wishful thinking").
-- A stub is `panic("todo: parse_proc")` — naming the proc it belongs to, so
-  the search from section 1 is self-documenting.
-- Do not smooth over a stub with a plausible error message. That borrows
-  against a diagnostic that does not exist yet — and borrows it wrong.
+- A stub returns an error naming the feature it belongs to — e.g.
+  `p.err = "Call arguments are not implemented yet (byte …)"` — so the
+  search from section 1 is self-documenting.
+- A stub error is honest about the source being valid: never phrase it as
+  "Expected … got …", which would blame the program for the compiler's gap.
+  The re-enabled slice tests pin the target shape, so a stub cannot pass
+  tests silently.
 
 ## 4. Comments say why, never what
 

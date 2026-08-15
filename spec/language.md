@@ -129,10 +129,34 @@ resolution happens in the constant-folding pass, which must not assume source
 order. A cyclic chain (`A :: B; B :: A`) is a source error diagnosed at fold
 time, never a hang or panic. See [docs/design.md](../docs/design.md).
 
-### 5.3 Procedures *(deferred)*
+### 5.3 Procedures
 
-`identifier : [type] : proc ( ) block` — the `proc` keyword is lexed and
-recognised, but the dispatch, parameters, and blocks are not yet implemented.
+`identifier : [type] : proc ( params ) block` — the `proc` keyword is lexed
+and recognised; the dispatch and blocks are implemented. A block body is a
+newline-separated statement list (§11.16): a statement occupies its line,
+ending at a newline or the block's `}`. The parameter list is not — today
+`parse_params` consumes the empty `( )`, and typed `name : type` parameters
+land with the typed-parameters slice.
+
+A parameter is `name : type`, using the type grammar of §6. The list is
+comma-separated and may be empty: `proc()` declares zero parameters and is
+*not* the `()` unit value (that is a separate slice). Proc signatures are
+explicitly typed (type_system.md §3) — unannotated recursive parameters are
+where HM inference goes undecidable-ish.
+
+Deferred, with the slices that provide them:
+
+- **Default values** — `name : type = default`, reusing the `=` initialiser
+  of §5.4's `x : type = expr` form; `=` is already a token, so defaults add
+  no lexing.
+- **Inferred parameters** — `name := default`. The `:=` token needs the
+  multi-char operator slice, and inference without a default has no type
+  source, so this is a defaults variant, not standalone syntax.
+
+The signature parens are zones (§11.16), so a multi-line parameter list
+parses with no extra machinery — the same payoff call arguments get. Return
+lists (`-> (int, bool)`) land with the multiple-return-values slice
+(type_system.md §4); the signature has room for them after the parens.
 
 ### 5.4 Variables *(deferred)*
 
@@ -219,11 +243,16 @@ They will land together with their rows.
 
 ## 8. Diagnostics
 
-- **Panics are compiler bugs** — an unimplemented path reached with valid
-  input (`panic("todo: …")`), a violated invariant, or out of memory.
-- **`ok = false` with a message on the receiver is a source bug.**
+- **Panics are compiler bugs** — a violated invariant, or out of memory. An
+  unimplemented path reached with valid input is *not* one of these: it
+  returns `ok = false` with a message that says so plainly (ARB 0001), e.g.
+  "Procedure declarations are not implemented yet (byte 8)".
+- **`ok = false` with a message on the receiver is a source bug** — or an
+  unimplemented feature; the message says which.
 - Diagnostics are grammatical sentences, capitalised, positions reported as
-  bytes: `Expected an expression at byte 12, got Star`.
+  bytes: `Expected an expression at byte 12, got Star`. A not-implemented
+  error says "X is not implemented yet (byte N)" — the source is valid, so
+  "Expected" would blame the program for the compiler's gap.
 
 See [docs/style_guide.md](../docs/style_guide.md).
 
@@ -240,9 +269,9 @@ See [docs/style_guide.md](../docs/style_guide.md).
 
 ## 10. Deferred features
 
-Blocks, procedures, calls, assignment, `()` unit, variables (`:=`), slices,
-tuples, unions, generic types, multi-char operators, `if`/`while`/`return`
-as expressions, typed parameters, discard sugar, and comptime.
+Calls, assignment, `()` unit, variables (`:=`), slices, tuples, unions,
+generic types, multi-char operators, `if`/`while`/`return` as expressions,
+typed parameters, discard sugar, and comptime.
 
 See [TODO.md](../TODO.md) for the build roadmap. The type system —
 semantic checking, HM with value restriction, multiple return values,
@@ -402,10 +431,12 @@ alloc/free pair that satisfies the tracker.
 
 **Lesson.** `binding_power` and `parse_infix` must cover exactly the same
 operator set. The table admits `=` (2,1) and `(` (30,30) with no
-`parse_infix` arms. Resolved: `to_binary_operator` now panics on an operator
-it does not recognise, so a future `x = 5` fails loudly as a compiler bug
-instead of silently parsing as `x + 5`. Assignment stays deferred until it
-becomes important.
+`parse_infix` arms. Resolved: `parse_infix` rejects the armless rows with a
+"not implemented yet" error (ARB 0001) before `to_binary_operator` ever
+sees them, so a future `x = 5` fails loudly instead of silently parsing as
+`x + 5`. `to_binary_operator` keeps its invariant panic for anything that
+slips past the Pratt loop's binding-power guard. Assignment stays deferred
+until it becomes important.
 
 ### 11.15 The identifier dispatch and continuation must agree
 

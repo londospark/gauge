@@ -30,7 +30,7 @@ token GNumber (digit)+ ('.' (digit)*)? ;
 
 -- `proc` is a hard keyword in the implementation. In LBNF a word becomes
 -- reserved only by appearing as a terminal in some rule, so `proc` is
--- reserved by the (deferred) procedure rule below.
+-- reserved by the procedure rule below.
 
 -- --- Program ----------------------------------------------------------------
 
@@ -43,8 +43,12 @@ DeclTyped.    Decl ::= Ident ":" Type ":" Expr ;
 
 -- The proc forms mirror the const forms: the type slot is optional, exactly
 -- as parse_decl consumes it (`ident : [type] :`). See spec/language.md §5.3.
--- deferred: DeclProc.      Decl ::= Ident ":" ":" "proc" "(" ")" Block ;
--- deferred: DeclProcTyped. Decl ::= Ident ":" Type ":" "proc" "(" ")" Block ;
+-- The parameter list is deferred: parse_params consumes the empty `( )`
+-- today, and typed `name : type` params land with the typed-parameters
+-- slice.
+DeclProc.      Decl ::= Ident ":" ":" "proc" "(" ")" Block ;
+DeclProcTyped. Decl ::= Ident ":" Type ":" "proc" "(" ")" Block ;
+-- deferred: Param.         Param ::= Ident ":" Type ;
 -- deferred: DeclVar.       Decl ::= Ident ":=" Expr ;
 -- deferred: DeclVarT.      Decl ::= Ident ":" Type "=" Expr ;
 -- deferred: DeclVarZ.      Decl ::= Ident ":" Type ;   -- ZII: zero-initialised, no initialiser (§11.19)
@@ -84,6 +88,6 @@ coercions Expr 4 ;
 
 -- --- Deferred structural rules ----------------------------------------------
 
--- deferred: Block. Block ::= "{" [Expr] "}" ;
+Block. Block ::= "{" [Expr] "}" ;
 
 entrypoints Program ;

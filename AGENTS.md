@@ -40,7 +40,7 @@ All tools live in the project's devenv shell — there is nothing installed ad-h
 
 ## Design notes
 
-- Code semantics — panic-vs-error (compiler bugs vs source bugs), `(T, bool)` + `or_return` propagation, stub/`todo` conventions, `@Note`/`@Review` lifecycle — live in `docs/style_guide.md`.
+- Code semantics — panic-vs-error (compiler bugs vs source bugs), `(T, bool)` + `or_return` propagation, stub/`todo` conventions, `@Note`/`@Review` lifecycle — live in `docs/style_guide.md`. Significant semantic decisions are recorded as ARBs in `docs/arb/` (see its README).
 - `Token` is `{ offset: int, value: ValueToken }`. Positions are **byte offsets**, never line/col.
 - Newlines are explicit `NewLine` tokens; the parser decides if one ends a statement — `zoning_pre_parse` drops NewLines inside paren zones before the parser runs (§11.16).
 - The lexer's `lex_peek`/`lex_advance` return `(u8, bool)` — `false` means EOF. Never use `0` as an EOF sentinel (NUL is a valid byte).
