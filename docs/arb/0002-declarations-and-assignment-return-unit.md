@@ -97,8 +97,6 @@ answer. Session convened 2026-08-15; the shape under discussion so far:
   warning. The opt-out tag is deferred with the language's whole tag
   system — no tag decisions are made in this session.
 
-The session's outcome lands as ARB 0003.
-
 ## Alternatives considered
 
 - **C value-returning assignment** — rejected: chaining; no
