@@ -14,3 +14,6 @@ gauge_program.c
 gauge_program
 gauge_program.exe
 *.obj
+
+# raddbg's debug-info cache, left beside any binary it loads
+*.rdi

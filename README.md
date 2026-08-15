@@ -96,12 +96,27 @@ The compiler itself is also packaged as a standalone flake, [londospark/odin-nig
 nix run github:londospark/odin-nightly-flake -- version
 ```
 
-## Debugging with gf2
+## Debugging
+
+Each Sublime build system picks the debugger its platform can run — Linux gets **gf2**, a graphical GDB frontend, because it sits comfortably in the devenv flake; Windows gets **RadDebugger**, which is free, native, and reads the PDBs Odin's `-debug` builds emit. Neither is doctrine: any debugger that speaks DWARF (Linux) or PDB (Windows) will do, and the build commands below are trivial to repoint at your own tool.
+
+### Linux — gf2
 
 ```sh
 devenv shell --quiet odin build . -debug
 devenv shell --quiet gf2 ./gauge
 ```
 
-[gf2](https://github.com/nakst/gf) is the graphical GDB frontend. `.project.gf` configures it to load `gauge`, disable its gvim sync, and pause at `main` on launch. In Sublime Text, open `gauge.sublime-project` and hit **Ctrl+B** with **Odin: Debug (gf2)** selected.
+[gf2](https://github.com/nakst/gf) is the graphical GDB frontend. `.project.gf` configures it — pause at `main` on launch, disable its gvim sync — and currently targets the test runner, `compiler.test.bin`, which is what the **Odin: Debug tests** build system hands it.
+
+### Windows — RadDebugger
+
+[RadDebugger](https://github.com/EpicGames/raddebugger) is a native Windows x64 debugger, free from its [releases page](https://github.com/EpicGames/raddebugger/releases). It reads the PDB files that `odin build . -debug` leaves beside the binaries. This workspace keeps a build under `X:\Tools\raddebugger` with a `raddbg.bat` shim on PATH (`X:\Tools\bin`) — that layout is just one option, and any install works as long as `raddbg` resolves.
+
+In Sublime Text, open `gauge.sublime-project` and hit **Ctrl+B**:
+
+- **Odin: Debug** — builds `gauge.exe` with `-debug`, then debugs it with `demo.gauge` as its input file.
+- **Odin: Debug tests** — builds the test runner as `compiler.test.bin.exe` (the `.exe` suffix matters: RadDebugger only loads `.exe` targets), then debugs it.
+
+The odin build output stays visible in the build panel while the debugger opens its own window on the target.
 
